@@ -541,39 +541,20 @@ main {
   }
 
   .app-header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "brand actions";
-    align-items: start;
-    gap: 0.45rem 0.75rem;
-  }
-
-  .app-header:has(.user-email:not(.hidden)) {
-    grid-template-areas:
-      "brand actions"
-      "account account";
-  }
-
-  .brand {
-    grid-area: brand;
+    align-items: flex-start;
   }
 
   .header-auth-group {
-    display: contents;
-  }
-
-  .auth-box {
-    grid-area: actions;
-    justify-self: end;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 0.25rem;
   }
 
   .user-email {
-    grid-area: account;
-    justify-self: center;
-    text-align: center;
-    max-width: 100%;
-    width: 100%;
-    padding-top: 0.15rem;
+    max-width: 9.5rem;
+    font-size: 0.75rem;
+    text-align: right;
+    line-height: 1.2;
   }
 
   .btn {
