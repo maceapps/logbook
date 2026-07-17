@@ -51,12 +51,21 @@ textarea {
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.25rem;
+  padding-left: max(1.25rem, env(safe-area-inset-left));
+  padding-right: max(1.25rem, env(safe-area-inset-right));
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.header-auth-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
 }
 
 .brand {
@@ -532,8 +541,44 @@ main {
   }
 
   .app-header {
-    align-items: flex-start;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "brand actions";
+    align-items: start;
+    gap: 0.45rem 0.75rem;
+  }
+
+  .app-header:has(.user-email:not(.hidden)) {
+    grid-template-areas:
+      "brand actions"
+      "account account";
+  }
+
+  .brand {
+    grid-area: brand;
+  }
+
+  .header-auth-group {
+    display: contents;
+  }
+
+  .auth-box {
+    grid-area: actions;
+    justify-self: end;
+  }
+
+  .user-email {
+    grid-area: account;
+    justify-self: center;
+    text-align: center;
+    max-width: 100%;
+    width: 100%;
+    padding-top: 0.15rem;
+  }
+
+  .btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.9rem;
   }
 
   main {

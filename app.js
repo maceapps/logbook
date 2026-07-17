@@ -619,7 +619,7 @@
   async function onAuthChange(authState) {
     if (!authState.signedIn) {
       showSignedOut();
-      if (authState.error) {
+      if (authState.error && !authState.silent) {
         setStatus(
           "Sign-in failed: " + (authState.error.error || "unknown error"),
           true
@@ -635,7 +635,14 @@
   function onGisReady() {
     try {
       LogBookGoogle.init(onAuthChange);
-      els.signInBtn.disabled = false;
+      els.signInBtn.disabled = true;
+      setStatus("Checking sign-in…");
+      LogBookGoogle.tryRestoreSession().then((restored) => {
+        els.signInBtn.disabled = false;
+        if (!restored && !LogBookGoogle.isSignedIn()) {
+          setStatus("");
+        }
+      });
     } catch (err) {
       setStatus(err.message, true);
       els.signInBtn.disabled = true;

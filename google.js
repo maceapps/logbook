@@ -39,6 +39,7 @@
   let tokenClient = null;
   let tokenExpiresAt = 0;
   let onAuthChange = null;
+  let pendingSilentResolve = null;
 
   function getClientId() {
     const id = global.LOGBOOK_CONFIG && global.LOGBOOK_CONFIG.GOOGLE_CLIENT_ID;
@@ -88,34 +89,71 @@
     );
   }
 
+  function handleTokenResponse(response) {
+    if (response.error) {
+      accessToken = null;
+      tokenExpiresAt = 0;
+      if (pendingSilentResolve) {
+        const resolve = pendingSilentResolve;
+        pendingSilentResolve = null;
+        resolve(false);
+        return;
+      }
+      if (onAuthChange) onAuthChange({ signedIn: false, error: response });
+      return;
+    }
+
+    accessToken = response.access_token;
+    const expiresIn = Number(response.expires_in || 3600);
+    tokenExpiresAt = Date.now() + expiresIn * 1000 - 60_000;
+
+    if (pendingSilentResolve) {
+      const resolve = pendingSilentResolve;
+      pendingSilentResolve = null;
+      resolve(true);
+    }
+    if (onAuthChange) {
+      onAuthChange({ signedIn: true, accessToken });
+    }
+  }
+
   function init(authChangeCallback) {
     onAuthChange = authChangeCallback;
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: getClientId(),
       scope: SCOPES,
-      callback: (response) => {
-        if (response.error) {
-          accessToken = null;
-          tokenExpiresAt = 0;
-          if (onAuthChange) onAuthChange({ signedIn: false, error: response });
-          return;
-        }
-        accessToken = response.access_token;
-        const expiresIn = Number(response.expires_in || 3600);
-        tokenExpiresAt = Date.now() + expiresIn * 1000 - 60_000;
-        if (onAuthChange) {
-          onAuthChange({ signedIn: true, accessToken });
-        }
-      },
+      callback: handleTokenResponse,
     });
   }
 
-  function signIn() {
+  function requestAccessToken(options) {
     if (!tokenClient) {
       throw new Error("Google auth is not ready yet.");
     }
-    // Empty prompt reuses prior consent when possible; Google shows UI if needed.
-    tokenClient.requestAccessToken({ prompt: "" });
+    tokenClient.requestAccessToken(options || { prompt: "" });
+  }
+
+  function signIn() {
+    requestAccessToken({ prompt: "" });
+  }
+
+  function tryRestoreSession() {
+    if (!tokenClient) {
+      return Promise.resolve(false);
+    }
+    if (accessToken && Date.now() < tokenExpiresAt) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      pendingSilentResolve = resolve;
+      requestAccessToken({ prompt: "" });
+      window.setTimeout(() => {
+        if (!pendingSilentResolve) return;
+        const resolve = pendingSilentResolve;
+        pendingSilentResolve = null;
+        resolve(false);
+      }, 10000);
+    });
   }
 
   function signOut() {
@@ -144,7 +182,7 @@
         if (state.signedIn) resolve();
         else reject(new Error(state.error?.error || "Token refresh failed."));
       };
-      tokenClient.requestAccessToken({ prompt: "" });
+      requestAccessToken({ prompt: "" });
     });
   }
 
@@ -494,6 +532,7 @@
     init,
     signIn,
     signOut,
+    tryRestoreSession,
     isSignedIn,
     getCurrentFYLabel,
     sheetNameForFY,
