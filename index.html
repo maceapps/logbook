@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LogBook</title>
+    <meta
+      name="description"
+      content="Mobile-friendly car trip logbook stored in your Google Drive."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <h1>LogBook</h1>
+        <p>Car trips · Google Drive</p>
+      </div>
+      <div class="auth-box">
+        <span id="user-email" class="user-email hidden" aria-live="polite"></span>
+        <button id="sign-in-btn" class="btn" type="button" disabled>
+          Sign in with Google
+        </button>
+        <button id="sign-out-btn" class="btn btn-ghost hidden" type="button">
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <p id="status" class="status hidden" role="status"></p>
+
+      <section id="signed-out" class="panel signed-out-hint">
+        <h2>Sign in to continue</h2>
+        <p>
+          Trips are saved to a <strong>LogBook</strong> folder in your Google
+          Drive, one spreadsheet per financial year.
+        </p>
+        <p>Set your Client ID in <code>config.js</code> before first use.</p>
+      </section>
+
+      <section id="signed-in" class="hidden">
+        <div class="toolbar">
+          <div class="field">
+            <label for="fy-select">Financial year</label>
+            <select id="fy-select"></select>
+          </div>
+          <button id="add-trip-btn" class="btn" type="button">Add trip</button>
+        </div>
+
+        <div class="panel">
+          <div id="empty-trips" class="empty-state hidden">
+            <p>No trips yet for this year.</p>
+            <p>Tap <strong>Add trip</strong> to log your first journey.</p>
+          </div>
+          <ul id="trip-list" class="trip-list" aria-label="Trips"></ul>
+        </div>
+      </section>
+    </main>
+
+    <div id="trip-overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="trip-form-title">
+      <div class="sheet">
+        <h2 id="trip-form-title">Add trip</h2>
+        <p id="form-error" class="status error hidden" role="alert"></p>
+        <form id="trip-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="start-date">Start date</label>
+              <input id="start-date" name="startDate" type="date" required />
+            </div>
+            <div class="field">
+              <label for="end-date">End date</label>
+              <input id="end-date" name="endDate" type="date" required />
+            </div>
+            <div class="field">
+              <label for="odo-start">Odometer start</label>
+              <input
+                id="odo-start"
+                name="odoStart"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="odo-end">Odometer end</label>
+              <input
+                id="odo-end"
+                name="odoEnd"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                required
+              />
+            </div>
+            <div class="field full">
+              <label for="purpose">Purpose of trip</label>
+              <textarea id="purpose" name="purpose" required></textarea>
+            </div>
+            <div class="field full">
+              <label for="work-related">Work-related?</label>
+              <select id="work-related" name="workRelated" required>
+                <option value="Y">Y — Work</option>
+                <option value="N">N — Personal</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="cancel-trip-btn" class="btn btn-secondary" type="button">
+              Cancel
+            </button>
+            <button id="save-trip-btn" class="btn" type="submit">Save trip</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="google.js"></script>
+    <script src="app.js"></script>
+    <script>
+      // GIS may load before or after app.js
+      (function waitForGis() {
+        if (window.google && google.accounts && google.accounts.oauth2) {
+          if (typeof window.__logbookOnGisLoad === "function") {
+            window.__logbookOnGisLoad();
+          }
+          return;
+        }
+        setTimeout(waitForGis, 50);
+      })();
+    </script>
+  </body>
+</html>
