@@ -388,26 +388,25 @@
       .filter(Boolean);
   }
 
-  async function appendTrip(spreadsheetId, trip) {
-    await ensureFreshToken();
+  function tripToRowValues(trip) {
     const km = Number(trip.odoEnd) - Number(trip.odoStart);
     const workRelated = trip.workRelated === "Y" ? "Y" : "N";
     const workKm = workRelated === "Y" ? km : "";
     const personalKm = workRelated === "N" ? km : "";
-
-    const values = [
-      [
-        formatDateForSheet(trip.startDate),
-        formatDateForSheet(trip.endDate),
-        Number(trip.odoStart),
-        Number(trip.odoEnd),
-        trip.purpose,
-        workRelated,
-        workKm,
-        personalKm,
-      ],
+    return [
+      formatDateForSheet(trip.startDate),
+      formatDateForSheet(trip.endDate),
+      Number(trip.odoStart),
+      Number(trip.odoEnd),
+      trip.purpose,
+      workRelated,
+      workKm,
+      personalKm,
     ];
+  }
 
+  async function appendTrip(spreadsheetId, trip) {
+    await ensureFreshToken();
     await apiFetch(
       "https://sheets.googleapis.com/v4/spreadsheets/" +
         spreadsheetId +
@@ -417,8 +416,75 @@
       {
         method: "POST",
         body: JSON.stringify({
-          values,
+          values: [tripToRowValues(trip)],
           majorDimension: "ROWS",
+        }),
+      }
+    );
+  }
+
+  async function updateTrip(spreadsheetId, rowNumber, trip) {
+    await ensureFreshToken();
+    const range =
+      "'Record Keeping'!A" + rowNumber + ":H" + rowNumber;
+    await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        "/values/" +
+        encodeURIComponent(range) +
+        "?valueInputOption=USER_ENTERED",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          range,
+          majorDimension: "ROWS",
+          values: [tripToRowValues(trip)],
+        }),
+      }
+    );
+  }
+
+  async function getRecordKeepingSheetId(spreadsheetId) {
+    await ensureFreshToken();
+    const meta = await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        "?fields=sheets.properties"
+    );
+    const sheets = meta.sheets || [];
+    const match = sheets.find(
+      (s) => s.properties && s.properties.title === SHEET_TAB
+    );
+    if (!match) {
+      throw new Error('Could not find the "Record Keeping" sheet tab.');
+    }
+    return match.properties.sheetId;
+  }
+
+  async function deleteTrip(spreadsheetId, rowNumber) {
+    await ensureFreshToken();
+    const sheetId = await getRecordKeepingSheetId(spreadsheetId);
+    // Sheets API uses 0-based row indexes; rowNumber is 1-based.
+    const startIndex = rowNumber - 1;
+    await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        ":batchUpdate",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId,
+                  dimension: "ROWS",
+                  startIndex,
+                  endIndex: startIndex + 1,
+                },
+              },
+            },
+          ],
         }),
       }
     );
@@ -437,5 +503,7 @@
     ensureCurrentFYSheet,
     listTrips,
     appendTrip,
+    updateTrip,
+    deleteTrip,
   };
 })(window);

@@ -70,6 +70,7 @@
         <h2 id="trip-form-title">Add trip</h2>
         <p id="form-error" class="status error hidden" role="alert"></p>
         <form id="trip-form">
+          <input type="hidden" id="edit-row" value="" />
           <div class="form-grid">
             <div class="field">
               <label for="start-date">Start date</label>
@@ -116,6 +117,14 @@
             </div>
           </div>
           <div class="form-actions">
+            <button
+              id="delete-trip-btn"
+              class="btn btn-danger hidden"
+              type="button"
+            >
+              Delete
+            </button>
+            <span class="form-actions-spacer"></span>
             <button id="cancel-trip-btn" class="btn btn-secondary" type="button">
               Cancel
             </button>

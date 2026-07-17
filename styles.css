@@ -254,6 +254,39 @@ main {
   font-size: 0.85rem;
 }
 
+.trip-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.btn-small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #7f2222;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+
+.form-actions-spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+
 .empty-state {
   text-align: center;
   padding: 2rem 1rem;
@@ -295,13 +328,6 @@ main {
 
 .form-grid .field.full {
   grid-column: 1 / -1;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  margin-top: 1.1rem;
 }
 
 .signed-out-hint {

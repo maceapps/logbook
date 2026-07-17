@@ -70,7 +70,8 @@ Open `http://localhost:5500` and ensure that origin is listed in the OAuth clien
 1. Sign in with Google and approve Drive/Sheets access.
 2. On first use the app creates a Drive folder named **LogBook** and a spreadsheet for the current financial year, e.g. `LogBook 2025-26`.
 3. Use **Add trip** to append a row. Start odometer is prefilled from the previous trip’s end when available.
-4. Switch years with the financial year selector. New years are created automatically when you first open the app during that FY.
+4. Use **Edit** / **Delete** on a trip (or Delete inside the edit form) to change or remove a row in the spreadsheet.
+5. Switch years with the financial year selector. New years are created automatically when you first open the app during that FY.
 
 Sheets created outside the app may not appear: the app uses the `drive.file` scope and only sees files it created.
 

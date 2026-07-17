@@ -12,7 +12,10 @@
     emptyTrips: document.getElementById("empty-trips"),
     overlay: document.getElementById("trip-overlay"),
     form: document.getElementById("trip-form"),
+    formTitle: document.getElementById("trip-form-title"),
+    editRow: document.getElementById("edit-row"),
     cancelBtn: document.getElementById("cancel-trip-btn"),
+    deleteBtn: document.getElementById("delete-trip-btn"),
     saveBtn: document.getElementById("save-trip-btn"),
     startDate: document.getElementById("start-date"),
     endDate: document.getElementById("end-date"),
@@ -56,6 +59,7 @@
     els.addTripBtn.disabled = busy || !state.selectedSheetId;
     els.fySelect.disabled = busy;
     els.saveBtn.disabled = busy;
+    els.deleteBtn.disabled = busy;
   }
 
   function showSignedIn(email) {
@@ -115,6 +119,11 @@
     });
   }
 
+  function clearFormError() {
+    els.formError.classList.add("hidden");
+    els.formError.textContent = "";
+  }
+
   function renderTrips() {
     els.tripList.innerHTML = "";
     if (!state.trips.length) {
@@ -150,7 +159,11 @@
         '<span class="trip-badge"></span>' +
         "</div>" +
         '<p class="trip-purpose"></p>' +
-        '<p class="trip-meta"></p>';
+        '<p class="trip-meta"></p>' +
+        '<div class="trip-actions">' +
+        '<button type="button" class="btn btn-secondary btn-small trip-edit">Edit</button>' +
+        '<button type="button" class="btn btn-danger btn-small trip-delete">Delete</button>' +
+        "</div>";
 
       li.querySelector(".trip-dates").textContent = dateLabel;
       const badge = li.querySelector(".trip-badge");
@@ -166,6 +179,14 @@
         odoBits.push(km + " km");
       }
       li.querySelector(".trip-meta").textContent = odoBits.join(" · ");
+
+      li.querySelector(".trip-edit").addEventListener("click", () => {
+        openEditForm(trip);
+      });
+      li.querySelector(".trip-delete").addEventListener("click", () => {
+        confirmDeleteTrip(trip);
+      });
+
       els.tripList.appendChild(li);
     });
   }
@@ -214,13 +235,17 @@
   }
 
   function openAddForm() {
+    els.editRow.value = "";
+    els.formTitle.textContent = "Add trip";
+    els.saveBtn.textContent = "Save trip";
+    els.deleteBtn.classList.add("hidden");
+    clearFormError();
+
     const today = todayISO();
     els.startDate.value = today;
     els.endDate.value = today;
     els.purpose.value = "";
     els.workRelated.value = "Y";
-    els.formError.classList.add("hidden");
-    els.formError.textContent = "";
 
     const last = state.trips[state.trips.length - 1];
     if (last && last.odoEnd != null && !Number.isNaN(last.odoEnd)) {
@@ -234,8 +259,33 @@
     els.purpose.focus();
   }
 
-  function closeAddForm() {
+  function openEditForm(trip) {
+    els.editRow.value = String(trip.rowNumber);
+    els.formTitle.textContent = "Edit trip";
+    els.saveBtn.textContent = "Update trip";
+    els.deleteBtn.classList.remove("hidden");
+    clearFormError();
+
+    els.startDate.value = trip.startDate || "";
+    els.endDate.value = trip.endDate || trip.startDate || "";
+    els.odoStart.value =
+      trip.odoStart != null && !Number.isNaN(trip.odoStart)
+        ? String(trip.odoStart)
+        : "";
+    els.odoEnd.value =
+      trip.odoEnd != null && !Number.isNaN(trip.odoEnd)
+        ? String(trip.odoEnd)
+        : "";
+    els.purpose.value = trip.purpose || "";
+    els.workRelated.value = trip.workRelated === "N" ? "N" : "Y";
+
+    els.overlay.classList.remove("hidden");
+    els.purpose.focus();
+  }
+
+  function closeForm() {
     els.overlay.classList.add("hidden");
+    els.editRow.value = "";
   }
 
   function validateForm() {
@@ -264,6 +314,17 @@
     return null;
   }
 
+  function formTripPayload() {
+    return {
+      startDate: els.startDate.value,
+      endDate: els.endDate.value,
+      odoStart: Number(els.odoStart.value),
+      odoEnd: Number(els.odoEnd.value),
+      purpose: els.purpose.value.trim(),
+      workRelated: els.workRelated.value,
+    };
+  }
+
   async function saveTrip(event) {
     event.preventDefault();
     const error = validateForm();
@@ -272,23 +333,64 @@
       els.formError.classList.remove("hidden");
       return;
     }
-    els.formError.classList.add("hidden");
+    clearFormError();
     setBusy(true);
+    const payload = formTripPayload();
+    const rowNumber = els.editRow.value ? Number(els.editRow.value) : null;
     try {
-      await LogBookGoogle.appendTrip(state.selectedSheetId, {
-        startDate: els.startDate.value,
-        endDate: els.endDate.value,
-        odoStart: Number(els.odoStart.value),
-        odoEnd: Number(els.odoEnd.value),
-        purpose: els.purpose.value.trim(),
-        workRelated: els.workRelated.value,
-      });
-      closeAddForm();
+      if (rowNumber) {
+        await LogBookGoogle.updateTrip(
+          state.selectedSheetId,
+          rowNumber,
+          payload
+        );
+      } else {
+        await LogBookGoogle.appendTrip(state.selectedSheetId, payload);
+      }
+      closeForm();
       await loadTrips();
     } catch (err) {
       console.error(err);
       els.formError.textContent = err.message || "Failed to save trip.";
       els.formError.classList.remove("hidden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeleteTrip(trip) {
+    const label = trip.purpose
+      ? '"' + trip.purpose + '"'
+      : formatDisplayDate(trip.startDate);
+    if (!window.confirm("Delete trip " + label + "? This cannot be undone.")) {
+      return;
+    }
+    await deleteTripByRow(trip.rowNumber);
+  }
+
+  async function deleteFromForm() {
+    const rowNumber = els.editRow.value ? Number(els.editRow.value) : null;
+    if (!rowNumber) return;
+    if (!window.confirm("Delete this trip? This cannot be undone.")) {
+      return;
+    }
+    await deleteTripByRow(rowNumber, true);
+  }
+
+  async function deleteTripByRow(rowNumber, fromForm) {
+    setBusy(true);
+    try {
+      await LogBookGoogle.deleteTrip(state.selectedSheetId, rowNumber);
+      if (fromForm) closeForm();
+      await loadTrips();
+    } catch (err) {
+      console.error(err);
+      if (fromForm) {
+        els.formError.textContent = err.message || "Failed to delete trip.";
+        els.formError.classList.remove("hidden");
+      } else {
+        setStatus(err.message || "Failed to delete trip.", true);
+      }
     } finally {
       setBusy(false);
     }
@@ -344,14 +446,14 @@
   });
 
   els.addTripBtn.addEventListener("click", openAddForm);
-  els.cancelBtn.addEventListener("click", closeAddForm);
+  els.cancelBtn.addEventListener("click", closeForm);
+  els.deleteBtn.addEventListener("click", deleteFromForm);
   els.form.addEventListener("submit", saveTrip);
 
   els.overlay.addEventListener("click", (e) => {
-    if (e.target === els.overlay) closeAddForm();
+    if (e.target === els.overlay) closeForm();
   });
 
-  // GIS script loads async; poll briefly or use global callback
   window.__logbookOnGisLoad = onGisReady;
   if (window.google && google.accounts && google.accounts.oauth2) {
     onGisReady();
