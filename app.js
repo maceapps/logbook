@@ -635,10 +635,9 @@
   function onGisReady() {
     try {
       LogBookGoogle.init(onAuthChange);
-      els.signInBtn.disabled = true;
+      els.signInBtn.disabled = false;
       setStatus("Checking sign-in…");
       LogBookGoogle.tryRestoreSession().then((restored) => {
-        els.signInBtn.disabled = false;
         if (!restored && !LogBookGoogle.isSignedIn()) {
           setStatus("");
         }

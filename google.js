@@ -40,6 +40,7 @@
   let tokenExpiresAt = 0;
   let onAuthChange = null;
   let pendingSilentResolve = null;
+  let lastTokenRequestSilent = false;
 
   function getClientId() {
     const id = global.LOGBOOK_CONFIG && global.LOGBOOK_CONFIG.GOOGLE_CLIENT_ID;
@@ -96,7 +97,12 @@
       if (pendingSilentResolve) {
         const resolve = pendingSilentResolve;
         pendingSilentResolve = null;
+        lastTokenRequestSilent = false;
         resolve(false);
+        return;
+      }
+      if (lastTokenRequestSilent) {
+        lastTokenRequestSilent = false;
         return;
       }
       if (onAuthChange) onAuthChange({ signedIn: false, error: response });
@@ -110,6 +116,7 @@
     if (pendingSilentResolve) {
       const resolve = pendingSilentResolve;
       pendingSilentResolve = null;
+      lastTokenRequestSilent = false;
       resolve(true);
     }
     if (onAuthChange) {
@@ -126,15 +133,16 @@
     });
   }
 
-  function requestAccessToken(options) {
+  function requestAccessToken(options, silent) {
     if (!tokenClient) {
       throw new Error("Google auth is not ready yet.");
     }
+    lastTokenRequestSilent = Boolean(silent);
     tokenClient.requestAccessToken(options || { prompt: "" });
   }
 
   function signIn() {
-    requestAccessToken({ prompt: "" });
+    requestAccessToken({ prompt: "" }, false);
   }
 
   function tryRestoreSession() {
@@ -146,13 +154,14 @@
     }
     return new Promise((resolve) => {
       pendingSilentResolve = resolve;
-      requestAccessToken({ prompt: "" });
+      requestAccessToken({ prompt: "" }, true);
       window.setTimeout(() => {
         if (!pendingSilentResolve) return;
-        const resolve = pendingSilentResolve;
+        const finish = pendingSilentResolve;
         pendingSilentResolve = null;
-        resolve(false);
-      }, 10000);
+        lastTokenRequestSilent = false;
+        finish(false);
+      }, 3000);
     });
   }
 
@@ -182,7 +191,7 @@
         if (state.signedIn) resolve();
         else reject(new Error(state.error?.error || "Token refresh failed."));
       };
-      requestAccessToken({ prompt: "" });
+      requestAccessToken({ prompt: "" }, false);
     });
   }
 
