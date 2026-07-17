@@ -181,6 +181,30 @@
       </div>
     </div>
 
+    <div
+      id="trip-actions-overlay"
+      class="overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trip-actions-title"
+    >
+      <div class="sheet trip-actions-sheet">
+        <h2 id="trip-actions-title">Trip options</h2>
+        <p id="trip-actions-summary" class="trip-actions-summary"></p>
+        <div class="trip-actions-menu">
+          <button id="trip-action-edit" class="btn btn-secondary trip-action-btn" type="button">
+            Edit trip
+          </button>
+          <button id="trip-action-delete" class="btn btn-danger trip-action-btn" type="button">
+            Delete trip
+          </button>
+          <button id="trip-action-cancel" class="btn btn-ghost trip-action-btn" type="button">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
     <script src="config.js"></script>
     <script src="google.js"></script>
     <script src="app.js"></script>

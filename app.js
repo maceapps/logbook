@@ -24,6 +24,11 @@
     tripList: document.getElementById("trip-list"),
     emptyTrips: document.getElementById("empty-trips"),
     overlay: document.getElementById("trip-overlay"),
+    actionsOverlay: document.getElementById("trip-actions-overlay"),
+    actionsSummary: document.getElementById("trip-actions-summary"),
+    actionEditBtn: document.getElementById("trip-action-edit"),
+    actionDeleteBtn: document.getElementById("trip-action-delete"),
+    actionCancelBtn: document.getElementById("trip-action-cancel"),
     form: document.getElementById("trip-form"),
     formTitle: document.getElementById("trip-form-title"),
     editRow: document.getElementById("edit-row"),
@@ -45,6 +50,7 @@
     selectedSheetId: null,
     trips: [],
     busy: false,
+    selectedActionTrip: null,
   };
 
   function todayISO() {
@@ -73,6 +79,8 @@
     els.fySelect.disabled = busy;
     els.saveBtn.disabled = busy;
     els.deleteBtn.disabled = busy;
+    if (els.actionEditBtn) els.actionEditBtn.disabled = busy;
+    if (els.actionDeleteBtn) els.actionDeleteBtn.disabled = busy;
   }
 
   function showSignedIn(email) {
@@ -356,7 +364,9 @@
     const trips = state.trips.slice().reverse();
     trips.forEach((trip) => {
       const li = document.createElement("li");
-      li.className = "trip-item";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "trip-item";
       const isWork = trip.workRelated === "Y";
       const km =
         isWork && trip.workKm != null
@@ -373,23 +383,19 @@
           " – " +
           formatDisplayDate(trip.endDate);
 
-      li.innerHTML =
+      btn.innerHTML =
         '<div class="trip-item-top">' +
         '<span class="trip-dates"></span>' +
         '<span class="trip-badge"></span>' +
         "</div>" +
-        '<p class="trip-purpose"></p>' +
-        '<p class="trip-meta"></p>' +
-        '<div class="trip-actions">' +
-        '<button type="button" class="btn btn-secondary btn-small trip-edit">Edit</button>' +
-        '<button type="button" class="btn btn-danger btn-small trip-delete">Delete</button>' +
-        "</div>";
+        '<div class="trip-purpose"></div>' +
+        '<div class="trip-meta"></div>';
 
-      li.querySelector(".trip-dates").textContent = dateLabel;
-      const badge = li.querySelector(".trip-badge");
+      btn.querySelector(".trip-dates").textContent = dateLabel;
+      const badge = btn.querySelector(".trip-badge");
       badge.textContent = isWork ? "Work" : "Personal";
       badge.classList.add(isWork ? "work" : "personal");
-      li.querySelector(".trip-purpose").textContent =
+      btn.querySelector(".trip-purpose").textContent =
         trip.purpose || "(No purpose)";
       const odoBits = [];
       if (trip.odoStart != null && !Number.isNaN(trip.odoStart)) {
@@ -398,17 +404,38 @@
       if (km != null && !Number.isNaN(km)) {
         odoBits.push(km + " km");
       }
-      li.querySelector(".trip-meta").textContent = odoBits.join(" · ");
+      btn.querySelector(".trip-meta").textContent = odoBits.join(" · ");
 
-      li.querySelector(".trip-edit").addEventListener("click", () => {
-        openEditForm(trip);
-      });
-      li.querySelector(".trip-delete").addEventListener("click", () => {
-        confirmDeleteTrip(trip);
+      btn.addEventListener("click", () => {
+        openTripActions(trip);
       });
 
+      li.appendChild(btn);
       els.tripList.appendChild(li);
     });
+  }
+
+  function formatTripSummary(trip) {
+    const isWork = trip.workRelated === "Y";
+    const sameDay = trip.startDate === trip.endDate;
+    const dateLabel = sameDay
+      ? formatDisplayDate(trip.startDate)
+      : formatDisplayDate(trip.startDate) +
+        " – " +
+        formatDisplayDate(trip.endDate);
+    const parts = [dateLabel, trip.purpose || "(No purpose)", isWork ? "Work" : "Personal"];
+    return parts.join(" · ");
+  }
+
+  function openTripActions(trip) {
+    state.selectedActionTrip = trip;
+    els.actionsSummary.textContent = formatTripSummary(trip);
+    els.actionsOverlay.classList.remove("hidden");
+  }
+
+  function closeTripActions() {
+    els.actionsOverlay.classList.add("hidden");
+    state.selectedActionTrip = null;
   }
 
   async function bootstrapDrive() {
@@ -476,7 +503,8 @@
     els.odoEnd.value = "";
 
     els.overlay.classList.remove("hidden");
-    els.purpose.focus();
+    const sheet = els.overlay.querySelector(".sheet");
+    if (sheet) sheet.scrollTop = 0;
   }
 
   function openEditForm(trip) {
@@ -500,7 +528,8 @@
     els.workRelated.value = trip.workRelated === "N" ? "N" : "Y";
 
     els.overlay.classList.remove("hidden");
-    els.purpose.focus();
+    const sheet = els.overlay.querySelector(".sheet");
+    if (sheet) sheet.scrollTop = 0;
   }
 
   function closeForm() {
@@ -678,6 +707,26 @@
 
   els.overlay.addEventListener("click", (e) => {
     if (e.target === els.overlay) closeForm();
+  });
+
+  els.actionEditBtn.addEventListener("click", () => {
+    const trip = state.selectedActionTrip;
+    if (!trip) return;
+    closeTripActions();
+    openEditForm(trip);
+  });
+
+  els.actionDeleteBtn.addEventListener("click", () => {
+    const trip = state.selectedActionTrip;
+    if (!trip) return;
+    closeTripActions();
+    confirmDeleteTrip(trip);
+  });
+
+  els.actionCancelBtn.addEventListener("click", closeTripActions);
+
+  els.actionsOverlay.addEventListener("click", (e) => {
+    if (e.target === els.actionsOverlay) closeTripActions();
   });
 
   window.__logbookOnGisLoad = onGisReady;

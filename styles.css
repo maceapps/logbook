@@ -384,10 +384,26 @@ main {
 }
 
 .trip-item {
+  display: block;
+  width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.85rem 1rem;
   background: linear-gradient(180deg, #fff 0%, #fafcf9 100%);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  appearance: none;
+  font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.trip-item:hover {
+  border-color: var(--accent);
+}
+
+.trip-item:active {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .trip-item-top {
@@ -428,10 +444,26 @@ main {
   font-size: 0.85rem;
 }
 
-.trip-actions {
+.trip-actions-sheet h2 {
+  margin-bottom: 0.35rem;
+}
+
+.trip-actions-summary {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.trip-actions-menu {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 0.65rem;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.trip-action-btn {
+  width: 100%;
+  justify-content: center;
 }
 
 .btn-small {
