@@ -21,7 +21,7 @@
     <header class="app-header">
       <div class="brand">
         <h1>LogBook</h1>
-        <p>Car trips · Google Drive</p>
+        <p>Car trips</p>
       </div>
       <div class="header-auth-group">
         <span id="user-email" class="user-email hidden" aria-live="polite"></span>
@@ -47,6 +47,14 @@
       </section>
 
       <section id="signed-in" class="hidden">
+        <div class="toolbar">
+          <div class="field">
+            <label for="fy-select">Financial year</label>
+            <select id="fy-select"></select>
+          </div>
+          <button id="add-trip-btn" class="btn" type="button">Add trip</button>
+        </div>
+
         <div id="dashboard" class="dashboard hidden">
           <div id="period-progress" class="period-progress hidden" aria-live="polite">
             <div class="period-progress-header">
@@ -92,14 +100,6 @@
           </div>
 
           <p id="status" class="status hidden" role="status"></p>
-        </div>
-
-        <div class="toolbar">
-          <div class="field">
-            <label for="fy-select">Financial year</label>
-            <select id="fy-select"></select>
-          </div>
-          <button id="add-trip-btn" class="btn" type="button">Add trip</button>
         </div>
 
         <div class="panel">
