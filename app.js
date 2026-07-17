@@ -5,6 +5,7 @@
     userEmail: document.getElementById("user-email"),
     signedOut: document.getElementById("signed-out"),
     signedIn: document.getElementById("signed-in"),
+    dashboard: document.getElementById("dashboard"),
     status: document.getElementById("status"),
     periodProgress: document.getElementById("period-progress"),
     periodProgressLabel: document.getElementById("period-progress-label"),
@@ -13,8 +14,7 @@
     periodProgressMeta: document.getElementById("period-progress-meta"),
     usageSplit: document.getElementById("usage-split"),
     usageSplitTotal: document.getElementById("usage-split-total"),
-    usageSplitBusiness: document.getElementById("usage-split-business"),
-    usageSplitPersonal: document.getElementById("usage-split-personal"),
+    usageSplitTrack: document.getElementById("usage-split-track"),
     usageBusinessPct: document.getElementById("usage-business-pct"),
     usageBusinessKm: document.getElementById("usage-business-km"),
     usagePersonalPct: document.getElementById("usage-personal-pct"),
@@ -96,8 +96,9 @@
     state.selectedSheetId = null;
     state.trips = [];
     els.fySelect.innerHTML = "";
-    els.periodProgress.classList.add("hidden");
-    els.usageSplit.classList.add("hidden");
+    if (els.dashboard) els.dashboard.classList.add("hidden");
+    if (els.periodProgress) els.periodProgress.classList.add("hidden");
+    if (els.usageSplit) els.usageSplit.classList.add("hidden");
     renderTrips();
     setStatus("");
   }
@@ -159,10 +160,14 @@
     return Math.round(ms / 86400000);
   }
 
+  function isValidISODate(iso) {
+    return typeof iso === "string" && /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  }
+
   function getFirstTripStartDate(trips) {
     const dates = trips
       .map((trip) => trip.startDate)
-      .filter(Boolean)
+      .filter(isValidISODate)
       .sort();
     return dates[0] || null;
   }
@@ -196,6 +201,8 @@
   }
 
   function renderPeriodProgress() {
+    if (!els.periodProgress) return;
+
     const firstStart = getFirstTripStartDate(state.trips);
     if (!firstStart) {
       els.periodProgress.classList.add("hidden");
@@ -228,6 +235,69 @@
         (progress.daysRemaining === 1 ? "" : "s") +
         " remaining";
     }
+  }
+
+  function setUsageSplitGradient(businessPct, personalPct) {
+    if (!els.usageSplitTrack) return;
+    els.usageSplitTrack.classList.remove("is-empty");
+    els.usageSplitTrack.style.background =
+      "linear-gradient(to right, var(--work) 0%, var(--work) " +
+      businessPct +
+      "%, #c49a3a " +
+      businessPct +
+      "%, var(--personal) 100%)";
+    els.usageSplitTrack.setAttribute(
+      "aria-label",
+      "Business " + businessPct + "%, personal " + personalPct + "%"
+    );
+  }
+
+  function renderUsageSplit() {
+    if (!els.usageSplit) return;
+
+    if (!state.trips.length) {
+      els.usageSplit.classList.add("hidden");
+      return;
+    }
+
+    const totals = getUsageTotals(state.trips);
+    const totalKm = totals.business + totals.personal;
+    els.usageSplit.classList.remove("hidden");
+
+    if (totalKm <= 0) {
+      els.usageSplitTotal.textContent = "0 km logged";
+      if (els.usageSplitTrack) {
+        els.usageSplitTrack.classList.add("is-empty");
+        els.usageSplitTrack.style.background = "var(--bg-accent)";
+      }
+      els.usageBusinessPct.textContent = "0%";
+      els.usagePersonalPct.textContent = "0%";
+      els.usageBusinessKm.textContent = "0 km";
+      els.usagePersonalKm.textContent = "0 km";
+      return;
+    }
+
+    const businessPct = Math.round((totals.business / totalKm) * 100);
+    const personalPct = 100 - businessPct;
+
+    els.usageSplitTotal.textContent = formatKm(totalKm) + " total";
+    setUsageSplitGradient(businessPct, personalPct);
+    els.usageBusinessPct.textContent = businessPct + "%";
+    els.usagePersonalPct.textContent = personalPct + "%";
+    els.usageBusinessKm.textContent = formatKm(totals.business);
+    els.usagePersonalKm.textContent = formatKm(totals.personal);
+  }
+
+  function updateDashboard() {
+    if (!els.dashboard) return;
+
+    const hasTrips = state.trips.length > 0;
+    const hasPeriod = Boolean(getFirstTripStartDate(state.trips));
+    const showDashboard = hasTrips || hasPeriod;
+
+    els.dashboard.classList.toggle("hidden", !showDashboard);
+    renderPeriodProgress();
+    renderUsageSplit();
   }
 
   function getTripKm(trip) {
@@ -268,52 +338,13 @@
     return rounded + " km";
   }
 
-  function renderUsageSplit() {
-    if (!state.trips.length) {
-      els.usageSplit.classList.add("hidden");
-      return;
-    }
-
-    const totals = getUsageTotals(state.trips);
-    const totalKm = totals.business + totals.personal;
-    els.usageSplit.classList.remove("hidden");
-
-    if (totalKm <= 0) {
-      els.usageSplitTotal.textContent = "0 km logged";
-      els.usageSplitBusiness.style.width = "50%";
-      els.usageSplitPersonal.style.width = "50%";
-      els.usageSplitBusiness.style.opacity = "0.25";
-      els.usageSplitPersonal.style.opacity = "0.25";
-      els.usageBusinessPct.textContent = "0%";
-      els.usagePersonalPct.textContent = "0%";
-      els.usageBusinessKm.textContent = "0 km";
-      els.usagePersonalKm.textContent = "0 km";
-      return;
-    }
-
-    els.usageSplitBusiness.style.opacity = "1";
-    els.usageSplitPersonal.style.opacity = "1";
-
-    const businessPct = Math.round((totals.business / totalKm) * 100);
-    const personalPct = 100 - businessPct;
-
-    els.usageSplitTotal.textContent = formatKm(totalKm) + " total";
-    els.usageSplitBusiness.style.width = businessPct + "%";
-    els.usageSplitPersonal.style.width = personalPct + "%";
-    els.usageBusinessPct.textContent = businessPct + "%";
-    els.usagePersonalPct.textContent = personalPct + "%";
-    els.usageBusinessKm.textContent = formatKm(totals.business);
-    els.usagePersonalKm.textContent = formatKm(totals.personal);
-  }
-
   function clearFormError() {
     els.formError.classList.add("hidden");
     els.formError.textContent = "";
   }
 
   function renderTrips() {
-    renderPeriodProgress();
-    renderUsageSplit();
+    updateDashboard();
     els.tripList.innerHTML = "";
     if (!state.trips.length) {
       els.emptyTrips.classList.remove("hidden");

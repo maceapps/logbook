@@ -2,7 +2,7 @@
 <html lang="en-AU">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>LogBook</title>
     <meta
       name="description"
@@ -35,49 +35,6 @@
     </header>
 
     <main>
-      <div id="period-progress" class="period-progress hidden" aria-live="polite">
-        <div class="period-progress-header">
-          <span class="period-progress-title">12-week logbook period</span>
-          <span id="period-progress-label" class="period-progress-label"></span>
-        </div>
-        <div
-          class="period-progress-track"
-          role="progressbar"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="0"
-          id="period-progress-bar"
-        >
-          <div id="period-progress-fill" class="period-progress-fill"></div>
-        </div>
-        <p id="period-progress-meta" class="period-progress-meta"></p>
-      </div>
-
-      <div id="usage-split" class="usage-split hidden" aria-live="polite">
-        <div class="usage-split-header">
-          <span class="usage-split-title">Business vs personal use</span>
-          <span id="usage-split-total" class="usage-split-total"></span>
-        </div>
-        <div class="usage-split-track" id="usage-split-track">
-          <div id="usage-split-business" class="usage-split-business"></div>
-          <div id="usage-split-personal" class="usage-split-personal"></div>
-        </div>
-        <div class="usage-split-labels">
-          <div class="usage-split-side">
-            <span class="usage-split-name">Business</span>
-            <span id="usage-business-pct" class="usage-split-pct"></span>
-            <span id="usage-business-km" class="usage-split-km"></span>
-          </div>
-          <div class="usage-split-side usage-split-side-right">
-            <span class="usage-split-name">Personal</span>
-            <span id="usage-personal-pct" class="usage-split-pct"></span>
-            <span id="usage-personal-km" class="usage-split-km"></span>
-          </div>
-        </div>
-      </div>
-
-      <p id="status" class="status hidden" role="status"></p>
-
       <section id="signed-out" class="panel signed-out-hint">
         <h2>Sign in to continue</h2>
         <p>
@@ -88,6 +45,53 @@
       </section>
 
       <section id="signed-in" class="hidden">
+        <div id="dashboard" class="dashboard hidden">
+          <div id="period-progress" class="period-progress hidden" aria-live="polite">
+            <div class="period-progress-header">
+              <span class="period-progress-title">12-week logbook period</span>
+              <span id="period-progress-label" class="period-progress-label"></span>
+            </div>
+            <div
+              class="period-progress-track"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              id="period-progress-bar"
+            >
+              <div id="period-progress-fill" class="period-progress-fill"></div>
+            </div>
+            <p id="period-progress-meta" class="period-progress-meta"></p>
+          </div>
+
+          <div id="usage-split" class="usage-split hidden" aria-live="polite">
+            <div class="usage-split-header">
+              <span class="usage-split-title">Business vs personal use</span>
+              <span id="usage-split-total" class="usage-split-total"></span>
+            </div>
+            <div
+              class="usage-split-track"
+              id="usage-split-track"
+              role="img"
+              aria-label="Business vs personal usage split"
+            ></div>
+            <div class="usage-split-labels">
+              <div class="usage-split-side">
+                <span class="usage-split-name">Business</span>
+                <span id="usage-business-pct" class="usage-split-pct"></span>
+                <span id="usage-business-km" class="usage-split-km"></span>
+              </div>
+              <div class="usage-split-side usage-split-side-right">
+                <span class="usage-split-name">Personal</span>
+                <span id="usage-personal-pct" class="usage-split-pct"></span>
+                <span id="usage-personal-km" class="usage-split-km"></span>
+              </div>
+            </div>
+          </div>
+
+          <p id="status" class="status hidden" role="status"></p>
+        </div>
+
         <div class="toolbar">
           <div class="field">
             <label for="fy-select">Financial year</label>
