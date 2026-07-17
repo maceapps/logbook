@@ -6,6 +6,19 @@
     signedOut: document.getElementById("signed-out"),
     signedIn: document.getElementById("signed-in"),
     status: document.getElementById("status"),
+    periodProgress: document.getElementById("period-progress"),
+    periodProgressLabel: document.getElementById("period-progress-label"),
+    periodProgressBar: document.getElementById("period-progress-bar"),
+    periodProgressFill: document.getElementById("period-progress-fill"),
+    periodProgressMeta: document.getElementById("period-progress-meta"),
+    usageSplit: document.getElementById("usage-split"),
+    usageSplitTotal: document.getElementById("usage-split-total"),
+    usageSplitBusiness: document.getElementById("usage-split-business"),
+    usageSplitPersonal: document.getElementById("usage-split-personal"),
+    usageBusinessPct: document.getElementById("usage-business-pct"),
+    usageBusinessKm: document.getElementById("usage-business-km"),
+    usagePersonalPct: document.getElementById("usage-personal-pct"),
+    usagePersonalKm: document.getElementById("usage-personal-km"),
     fySelect: document.getElementById("fy-select"),
     addTripBtn: document.getElementById("add-trip-btn"),
     tripList: document.getElementById("trip-list"),
@@ -83,6 +96,8 @@
     state.selectedSheetId = null;
     state.trips = [];
     els.fySelect.innerHTML = "";
+    els.periodProgress.classList.add("hidden");
+    els.usageSplit.classList.add("hidden");
     renderTrips();
     setStatus("");
   }
@@ -108,6 +123,13 @@
     return d + "/" + m + "/" + y.slice(-2);
   }
 
+  function formatDateFromDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return formatDisplayDate(yyyy + "-" + mm + "-" + dd);
+  }
+
   function renderFYOptions() {
     els.fySelect.innerHTML = "";
     state.sheets.forEach((sheet) => {
@@ -119,12 +141,179 @@
     });
   }
 
+  const TWELVE_WEEKS_DAYS = 12 * 7;
+
+  function parseISODate(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function addDays(date, days) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
+  function daysBetween(start, end) {
+    const ms = end.getTime() - start.getTime();
+    return Math.round(ms / 86400000);
+  }
+
+  function getFirstTripStartDate(trips) {
+    const dates = trips
+      .map((trip) => trip.startDate)
+      .filter(Boolean)
+      .sort();
+    return dates[0] || null;
+  }
+
+  function getPeriodProgress(firstStartISO) {
+    const start = parseISODate(firstStartISO);
+    const end = addDays(start, TWELVE_WEEKS_DAYS);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const totalDays = TWELVE_WEEKS_DAYS;
+    let elapsedDays = daysBetween(start, today);
+    if (elapsedDays < 0) elapsedDays = 0;
+    if (elapsedDays > totalDays) elapsedDays = totalDays;
+
+    const percent = Math.round((elapsedDays / totalDays) * 100);
+    const complete = elapsedDays >= totalDays;
+    const daysRemaining = Math.max(0, totalDays - elapsedDays);
+    const weekNumber = Math.min(12, Math.max(1, Math.ceil(elapsedDays / 7) || 1));
+
+    return {
+      start,
+      end,
+      elapsedDays,
+      totalDays,
+      percent,
+      complete,
+      daysRemaining,
+      weekNumber,
+    };
+  }
+
+  function renderPeriodProgress() {
+    const firstStart = getFirstTripStartDate(state.trips);
+    if (!firstStart) {
+      els.periodProgress.classList.add("hidden");
+      return;
+    }
+
+    const progress = getPeriodProgress(firstStart);
+    els.periodProgress.classList.remove("hidden");
+    els.periodProgress.classList.toggle("complete", progress.complete);
+
+    els.periodProgressFill.style.width = progress.percent + "%";
+    els.periodProgressBar.setAttribute("aria-valuenow", String(progress.percent));
+
+    if (progress.complete) {
+      els.periodProgressLabel.textContent = "Complete";
+      els.periodProgressMeta.textContent =
+        "Started " +
+        formatDisplayDate(firstStart) +
+        " · 12 weeks captured";
+    } else {
+      els.periodProgressLabel.textContent =
+        "Week " + progress.weekNumber + " of 12";
+      els.periodProgressMeta.textContent =
+        formatDisplayDate(firstStart) +
+        " – " +
+        formatDateFromDate(progress.end) +
+        " · " +
+        progress.daysRemaining +
+        " day" +
+        (progress.daysRemaining === 1 ? "" : "s") +
+        " remaining";
+    }
+  }
+
+  function getTripKm(trip) {
+    const isWork = trip.workRelated === "Y";
+    let km = null;
+    if (isWork && trip.workKm != null && !Number.isNaN(trip.workKm)) {
+      km = trip.workKm;
+    } else if (!isWork && trip.personalKm != null && !Number.isNaN(trip.personalKm)) {
+      km = trip.personalKm;
+    } else if (
+      trip.odoEnd != null &&
+      trip.odoStart != null &&
+      !Number.isNaN(trip.odoEnd) &&
+      !Number.isNaN(trip.odoStart)
+    ) {
+      km = trip.odoEnd - trip.odoStart;
+    }
+    if (km == null || Number.isNaN(km) || km < 0) {
+      return { business: 0, personal: 0 };
+    }
+    return isWork ? { business: km, personal: 0 } : { business: 0, personal: km };
+  }
+
+  function getUsageTotals(trips) {
+    return trips.reduce(
+      (totals, trip) => {
+        const km = getTripKm(trip);
+        totals.business += km.business;
+        totals.personal += km.personal;
+        return totals;
+      },
+      { business: 0, personal: 0 }
+    );
+  }
+
+  function formatKm(km) {
+    const rounded = Math.round(km * 10) / 10;
+    return rounded + " km";
+  }
+
+  function renderUsageSplit() {
+    if (!state.trips.length) {
+      els.usageSplit.classList.add("hidden");
+      return;
+    }
+
+    const totals = getUsageTotals(state.trips);
+    const totalKm = totals.business + totals.personal;
+    els.usageSplit.classList.remove("hidden");
+
+    if (totalKm <= 0) {
+      els.usageSplitTotal.textContent = "0 km logged";
+      els.usageSplitBusiness.style.width = "50%";
+      els.usageSplitPersonal.style.width = "50%";
+      els.usageSplitBusiness.style.opacity = "0.25";
+      els.usageSplitPersonal.style.opacity = "0.25";
+      els.usageBusinessPct.textContent = "0%";
+      els.usagePersonalPct.textContent = "0%";
+      els.usageBusinessKm.textContent = "0 km";
+      els.usagePersonalKm.textContent = "0 km";
+      return;
+    }
+
+    els.usageSplitBusiness.style.opacity = "1";
+    els.usageSplitPersonal.style.opacity = "1";
+
+    const businessPct = Math.round((totals.business / totalKm) * 100);
+    const personalPct = 100 - businessPct;
+
+    els.usageSplitTotal.textContent = formatKm(totalKm) + " total";
+    els.usageSplitBusiness.style.width = businessPct + "%";
+    els.usageSplitPersonal.style.width = personalPct + "%";
+    els.usageBusinessPct.textContent = businessPct + "%";
+    els.usagePersonalPct.textContent = personalPct + "%";
+    els.usageBusinessKm.textContent = formatKm(totals.business);
+    els.usagePersonalKm.textContent = formatKm(totals.personal);
+  }
+
   function clearFormError() {
     els.formError.classList.add("hidden");
     els.formError.textContent = "";
   }
 
   function renderTrips() {
+    renderPeriodProgress();
+    renderUsageSplit();
     els.tripList.innerHTML = "";
     if (!state.trips.length) {
       els.emptyTrips.classList.remove("hidden");
