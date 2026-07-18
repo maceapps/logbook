@@ -280,6 +280,37 @@
     return selected ? selected.fy : LogBookGoogle.getCurrentFYLabel();
   }
 
+  function financialYearForDate(isoDate) {
+    const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      return null;
+    }
+    const startYear = month >= 7 ? year : year - 1;
+    return startYear + "-" + String(startYear + 1).slice(-2);
+  }
+
+  function tripFinancialYear(trip) {
+    const startFY = financialYearForDate(trip.startDate);
+    const endFY = financialYearForDate(trip.endDate);
+    return startFY && startFY === endFY ? startFY : null;
+  }
+
+  async function ensureSheetForFY(fyLabel) {
+    const result = await LogBookGoogle.ensureFYSheet(state.folderId, fyLabel);
+    state.sheets = result.sheets;
+    renderFYOptions();
+    return result.sheet;
+  }
+
   function vehicleDetailsComplete(details) {
     if (!details) return false;
     const baseFieldsPresent =
@@ -405,18 +436,89 @@
   }
 
   function getTripOdometerDefaults() {
-    const first = state.trips.slice().sort((a, b) => {
-      const compare = String(a.startDate).localeCompare(String(b.startDate));
-      return compare || Number(a.rowNumber || 0) - Number(b.rowNumber || 0);
-    })[0];
+    const sorted = sortTripsChronologically(state.trips);
+    const first = sorted[0];
     const last = state.trips.slice().sort((a, b) => {
-      const compare = String(b.endDate).localeCompare(String(a.endDate));
-      return compare || Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
+      const dateCompare = String(b.endDate).localeCompare(String(a.endDate));
+      if (dateCompare) return dateCompare;
+      const odometerCompare = Number(b.odoEnd) - Number(a.odoEnd);
+      if (Number.isFinite(odometerCompare) && odometerCompare) {
+        return odometerCompare;
+      }
+      return Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
     })[0];
     return {
       opening: Number(first.odoStart),
       closing: Number(last.odoEnd),
     };
+  }
+
+  function sortTripsChronologically(trips) {
+    return trips.slice().sort((a, b) => {
+      const dateCompare = String(a.startDate).localeCompare(String(b.startDate));
+      if (dateCompare) return dateCompare;
+      const odometerCompare = Number(a.odoStart) - Number(b.odoStart);
+      if (Number.isFinite(odometerCompare) && odometerCompare) {
+        return odometerCompare;
+      }
+      const endDateCompare = String(a.endDate).localeCompare(String(b.endDate));
+      if (endDateCompare) return endDateCompare;
+      const endOdometerCompare = Number(a.odoEnd) - Number(b.odoEnd);
+      if (Number.isFinite(endOdometerCompare) && endOdometerCompare) {
+        return endOdometerCompare;
+      }
+      return Number(a.rowNumber || 0) - Number(b.rowNumber || 0);
+    });
+  }
+
+  function findOdometerGaps(trips) {
+    const sorted = sortTripsChronologically(trips);
+    const gaps = [];
+    for (let index = 1; index < sorted.length; index += 1) {
+      const previous = sorted[index - 1];
+      const current = sorted[index];
+      const previousEnd = Number(previous.odoEnd);
+      const currentStart = Number(current.odoStart);
+      if (
+        Number.isFinite(previousEnd) &&
+        Number.isFinite(currentStart) &&
+        currentStart > previousEnd
+      ) {
+        gaps.push({
+          previous,
+          current,
+          kilometres: currentStart - previousEnd,
+        });
+      }
+    }
+    return gaps;
+  }
+
+  function getHighestEndingOdometer(trips) {
+    return trips.reduce((highest, trip) => {
+      const reading = Number(trip.odoEnd);
+      return Number.isFinite(reading) && (highest == null || reading > highest)
+        ? reading
+        : highest;
+    }, null);
+  }
+
+  function confirmDownloadWithGaps(trips) {
+    const gaps = findOdometerGaps(trips);
+    if (!gaps.length) return true;
+    const total = gaps.reduce((sum, gap) => sum + gap.kilometres, 0);
+    const summary =
+      gaps.length === 1
+        ? "There is a " + formatKm(total) + " odometer gap between trips."
+        : "There are " +
+          gaps.length +
+          " odometer gaps totalling " +
+          formatKm(total) +
+          ".";
+    return window.confirm(
+      summary +
+        "\n\nThese kilometres will not be included in the downloaded totals. Download anyway?"
+    );
   }
 
   function parsedSavedOdometer(value) {
@@ -460,12 +562,91 @@
     els.downloadOverlay.classList.add("hidden");
   }
 
+  async function resolveMisplacedTripsForDownload() {
+    const selectedFY = getSelectedFYLabel();
+    const invalid = state.trips.filter((trip) => !tripFinancialYear(trip));
+    if (invalid.length) {
+      const message =
+        invalid.length +
+        " trip" +
+        (invalid.length === 1 ? "" : "s") +
+        " cross a financial-year boundary or contain invalid dates. Edit and split " +
+        (invalid.length === 1 ? "it" : "them") +
+        " before downloading.";
+      window.alert(message);
+      setStatus(message, true);
+      return false;
+    }
+
+    const misplaced = state.trips.filter(
+      (trip) => tripFinancialYear(trip) !== selectedFY
+    );
+    if (!misplaced.length) return true;
+
+    const targetFYs = Array.from(
+      new Set(misplaced.map((trip) => tripFinancialYear(trip)))
+    ).sort();
+    const confirmed = window.confirm(
+      misplaced.length +
+        " trip" +
+        (misplaced.length === 1 ? " belongs" : "s belong") +
+        " to " +
+        targetFYs.join(", ") +
+        " rather than " +
+        selectedFY +
+        ".\n\nMove " +
+        (misplaced.length === 1 ? "it" : "them") +
+        " to the correct financial-year " +
+        (targetFYs.length === 1 ? "spreadsheet" : "spreadsheets") +
+        " now?"
+    );
+    if (!confirmed) {
+      setStatus(
+        "Download cancelled until misplaced trips are moved or corrected.",
+        true
+      );
+      return false;
+    }
+
+    const sourceSpreadsheetId = state.selectedSheetId;
+    const targetSheets = new Map();
+    const descendingRows = misplaced
+      .slice()
+      .sort((a, b) => Number(b.rowNumber) - Number(a.rowNumber));
+
+    for (const trip of descendingRows) {
+      const targetFY = tripFinancialYear(trip);
+      let targetSheet = targetSheets.get(targetFY);
+      if (!targetSheet) {
+        targetSheet = await ensureSheetForFY(targetFY);
+        targetSheets.set(targetFY, targetSheet);
+      }
+      await LogBookGoogle.moveTrip(
+        sourceSpreadsheetId,
+        trip.rowNumber,
+        targetSheet.id,
+        trip
+      );
+    }
+
+    state.sheets = await LogBookGoogle.listFYSheets(state.folderId);
+    state.trips = sortTripsChronologically(
+      await LogBookGoogle.listTrips(sourceSpreadsheetId)
+    );
+    renderFYOptions();
+    renderTrips();
+    restoreTripCountStatus();
+    return true;
+  }
+
   async function downloadCurrentLogBook() {
     if (!state.selectedSheetId) return;
     setBusy(true);
     setStatus("Refreshing trips before download…");
     try {
-      state.trips = await LogBookGoogle.listTrips(state.selectedSheetId);
+      state.trips = sortTripsChronologically(
+        await LogBookGoogle.listTrips(state.selectedSheetId)
+      );
       state.vehicleDetails = await LogBookGoogle.getVehicleDetails(
         state.selectedSheetId
       );
@@ -475,7 +656,22 @@
         setStatus("Add at least one trip before downloading.", true);
         return;
       }
+      if (!(await resolveMisplacedTripsForDownload())) return;
+      if (!state.trips.length) {
+        setStatus(
+          "No trips remain in this financial year after moving misplaced records.",
+          true
+        );
+        return;
+      }
       restoreTripCountStatus();
+      if (!confirmDownloadWithGaps(state.trips)) {
+        setStatus(
+          "Download cancelled. Review the odometer gaps in your trips.",
+          true
+        );
+        return;
+      }
       if (!vehicleDetailsComplete(state.vehicleDetails)) {
         state.downloadAfterVehicleSave = true;
         openVehicleForm(state.vehicleDetails);
@@ -659,7 +855,7 @@
     els.emptyTrips.classList.add("hidden");
 
     // Newest first for mobile scanning
-    const trips = state.trips.slice().reverse();
+    const trips = sortTripsChronologically(state.trips).reverse();
     trips.forEach((trip) => {
       const li = document.createElement("li");
       const btn = document.createElement("button");
@@ -763,7 +959,9 @@
     setBusy(true);
     setStatus("Loading trips…");
     try {
-      state.trips = await LogBookGoogle.listTrips(state.selectedSheetId);
+      state.trips = sortTripsChronologically(
+        await LogBookGoogle.listTrips(state.selectedSheetId)
+      );
       renderTrips();
       restoreTripCountStatus();
     } catch (err) {
@@ -787,9 +985,9 @@
     els.purpose.value = "";
     els.workRelated.value = "Y";
 
-    const last = state.trips[state.trips.length - 1];
-    if (last && last.odoEnd != null && !Number.isNaN(last.odoEnd)) {
-      els.odoStart.value = String(last.odoEnd);
+    const highestEndingOdometer = getHighestEndingOdometer(state.trips);
+    if (highestEndingOdometer != null) {
+      els.odoStart.value = String(highestEndingOdometer);
     } else {
       els.odoStart.value = "";
     }
@@ -840,6 +1038,12 @@
 
     if (!startDate || !endDate) return "Start and end dates are required.";
     if (endDate < startDate) return "End date cannot be before start date.";
+    const startFY = financialYearForDate(startDate);
+    const endFY = financialYearForDate(endDate);
+    if (!startFY || !endFY) return "Enter valid trip dates.";
+    if (startFY !== endFY) {
+      return "A trip cannot cross 30 June and 1 July. Split it into one trip for each financial year.";
+    }
     if (!els.odoStart.value || Number.isNaN(odoStart)) {
       return "Start odometer is required.";
     }
@@ -876,11 +1080,43 @@
       return;
     }
     clearFormError();
-    setBusy(true);
     const payload = formTripPayload();
     const rowNumber = els.editRow.value ? Number(els.editRow.value) : null;
+    const selectedFY = getSelectedFYLabel();
+    const targetFY = tripFinancialYear(payload);
+    if (targetFY !== selectedFY) {
+      const confirmed = window.confirm(
+        "This trip belongs to " +
+          targetFY +
+          ", not " +
+          selectedFY +
+          ".\n\n" +
+          (rowNumber
+            ? "Move it to the correct financial-year spreadsheet?"
+            : "Save it to the correct financial-year spreadsheet?")
+      );
+      if (!confirmed) return;
+    }
+
+    setBusy(true);
     try {
-      if (rowNumber) {
+      if (targetFY !== selectedFY) {
+        const sourceSpreadsheetId = state.selectedSheetId;
+        const targetSheet = await ensureSheetForFY(targetFY);
+        if (rowNumber) {
+          await LogBookGoogle.moveTrip(
+            sourceSpreadsheetId,
+            rowNumber,
+            targetSheet.id,
+            payload
+          );
+        } else {
+          await LogBookGoogle.appendTrip(targetSheet.id, payload);
+        }
+        state.selectedSheetId = targetSheet.id;
+        state.vehicleDetails = null;
+        renderFYOptions();
+      } else if (rowNumber) {
         await LogBookGoogle.updateTrip(
           state.selectedSheetId,
           rowNumber,
@@ -891,6 +1127,9 @@
       }
       closeForm();
       await loadTrips();
+      if (targetFY !== selectedFY) {
+        await loadVehicleDetails(false);
+      }
     } catch (err) {
       console.error(err);
       els.formError.textContent = err.message || "Failed to save trip.";
@@ -901,19 +1140,46 @@
   }
 
   async function confirmDeleteTrip(trip) {
+    if (!confirmTripDeletion(trip)) return;
+    await deleteTripByRow(trip.rowNumber);
+  }
+
+  function confirmTripDeletion(trip) {
     const label = trip.purpose
       ? '"' + trip.purpose + '"'
       : formatDisplayDate(trip.startDate);
-    if (!window.confirm("Delete trip " + label + "? This cannot be undone.")) {
-      return;
+    const sorted = sortTripsChronologically(state.trips);
+    const index = sorted.findIndex(
+      (candidate) => candidate.rowNumber === trip.rowNumber
+    );
+    let warning = "";
+    if (index > 0 && index < sorted.length - 1) {
+      const previousEnd = Number(sorted[index - 1].odoEnd);
+      const nextStart = Number(sorted[index + 1].odoStart);
+      const resultingGap = nextStart - previousEnd;
+      warning =
+        Number.isFinite(resultingGap) && resultingGap > 0
+          ? "\n\nThis will leave a " +
+            formatKm(resultingGap) +
+            " odometer gap between the surrounding trips."
+          : "\n\nThis is a middle trip and deleting it may leave an odometer gap.";
     }
-    await deleteTripByRow(trip.rowNumber);
+    return window.confirm(
+      "Delete trip " + label + "?" + warning + "\n\nThis cannot be undone."
+    );
   }
 
   async function deleteFromForm() {
     const rowNumber = els.editRow.value ? Number(els.editRow.value) : null;
     if (!rowNumber) return;
-    if (!window.confirm("Delete this trip? This cannot be undone.")) {
+    const trip = state.trips.find(
+      (candidate) => candidate.rowNumber === rowNumber
+    );
+    if (trip && !confirmTripDeletion(trip)) return;
+    if (
+      !trip &&
+      !window.confirm("Delete this trip? This cannot be undone.")
+    ) {
       return;
     }
     await deleteTripByRow(rowNumber, true);

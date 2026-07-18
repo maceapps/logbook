@@ -490,14 +490,23 @@
     return { id: file.id, name, fy: fyLabel };
   }
 
+  async function ensureFYSheet(folderId, fy) {
+    if (!/^\d{4}-\d{2}$/.test(fy || "")) {
+      throw new Error("Invalid financial year.");
+    }
+    const sheets = await listFYSheets(folderId);
+    let sheet = sheets.find((candidate) => candidate.fy === fy);
+    if (!sheet) {
+      sheet = await createFYSheet(folderId, fy);
+      sheets.unshift(sheet);
+    }
+    return { sheets, sheet };
+  }
+
   async function ensureCurrentFYSheet(folderId) {
     const fy = getCurrentFYLabel();
-    const sheets = await listFYSheets(folderId);
-    let current = sheets.find((s) => s.fy === fy);
-    if (!current) {
-      current = await createFYSheet(folderId, fy);
-      sheets.unshift(current);
-    }
+    const { sheets, sheet } = await ensureFYSheet(folderId, fy);
+    const current = sheet;
     return { sheets, current };
   }
 
@@ -675,7 +684,7 @@
 
   async function appendTrip(spreadsheetId, trip) {
     await ensureFreshToken();
-    await apiFetch(
+    const result = await apiFetch(
       "https://sheets.googleapis.com/v4/spreadsheets/" +
         spreadsheetId +
         "/values/" +
@@ -689,6 +698,12 @@
         }),
       }
     );
+    const updatedRange =
+      result && result.updates ? String(result.updates.updatedRange || "") : "";
+    const rowMatch = updatedRange.match(/![A-Z]+(\d+):[A-Z]+\d+$/i);
+    return {
+      rowNumber: rowMatch ? Number(rowMatch[1]) : null,
+    };
   }
 
   async function updateTrip(spreadsheetId, rowNumber, trip) {
@@ -758,6 +773,39 @@
     );
   }
 
+  async function moveTrip(
+    sourceSpreadsheetId,
+    sourceRowNumber,
+    targetSpreadsheetId,
+    trip
+  ) {
+    if (sourceSpreadsheetId === targetSpreadsheetId) {
+      throw new Error("The source and target financial years are the same.");
+    }
+    const appended = await appendTrip(targetSpreadsheetId, trip);
+    if (!appended.rowNumber) {
+      throw new Error(
+        "The trip was copied, but its new row could not be confirmed. Check both financial years before retrying."
+      );
+    }
+
+    try {
+      await deleteTrip(sourceSpreadsheetId, sourceRowNumber);
+    } catch (sourceError) {
+      try {
+        await deleteTrip(targetSpreadsheetId, appended.rowNumber);
+      } catch (_) {
+        throw new Error(
+          "The trip was copied but could not be removed from its original financial year or rolled back. Check both financial years for a duplicate."
+        );
+      }
+      throw new Error(
+        "The trip could not be moved, so the copy in the target financial year was rolled back. " +
+          (sourceError.message || "")
+      );
+    }
+  }
+
   global.LogBookGoogle = {
     init,
     signIn,
@@ -769,6 +817,7 @@
     ensureFolder,
     listFYSheets,
     createFYSheet,
+    ensureFYSheet,
     ensureCurrentFYSheet,
     listTrips,
     getVehicleDetails,
@@ -777,5 +826,6 @@
     appendTrip,
     updateTrip,
     deleteTrip,
+    moveTrip,
   };
 })(window);

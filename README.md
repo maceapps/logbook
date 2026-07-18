@@ -73,9 +73,9 @@ Open `http://localhost:5500` and ensure that origin is listed in the OAuth clien
 2. On return visits, LogBook will **try to sign you in automatically** if your Google session is still active in the browser.
 3. On first use the app creates a Drive folder named **LogBook** and a spreadsheet for the current financial year, e.g. `LogBook 2025-26`.
 4. If vehicle details have not been entered for that year, complete the prompt for make, model, model year, registration, engine type, and engine size. EVs do not require a cc value.
-5. Use **Add trip** to append a row. Start odometer is prefilled from the previous trip’s end when available.
-6. Tap a trip to edit or delete it.
-7. Use **Download** in the 12-week progress card. Review or update the 1 July and 30 June odometer readings, then create a formatted, single-sheet `.xlsx` file containing the vehicle details, summary totals and percentages, and all trip rows.
+5. Use **Add trip** to append a row. Trips are displayed and exported by start date, then starting odometer, and the start odometer is prefilled with the highest recorded ending odometer when available. Trips are saved to the spreadsheet matching their dates, even if another FY is currently selected.
+6. Tap a trip to edit or delete it. Changing an edited trip to another FY moves it to the correct spreadsheet. Trips cannot cross 30 June and 1 July and must be split at the FY boundary. Deleting a middle trip warns when it will leave an odometer gap.
+7. Use **Download** in the 12-week progress card. Before downloading, the app offers to move existing misplaced trips to their correct FY spreadsheets and warns about odometer gaps. Review or update the 1 July and 30 June odometer readings, then create a formatted, single-sheet `.xlsx` file containing the vehicle details, summary totals and percentages, and all trip rows for the selected FY.
 8. Switch years with the financial year selector. New years are created automatically when you first open the app during that FY.
 
 Sheets created outside the app may not appear: the app uses the `drive.file` scope and only sees files it created.

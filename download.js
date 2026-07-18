@@ -36,22 +36,32 @@
     return trips.slice().sort((a, b) => {
       const startCompare = String(a.startDate).localeCompare(String(b.startDate));
       if (startCompare !== 0) return startCompare;
+      const startOdometerCompare = Number(a.odoStart) - Number(b.odoStart);
+      if (Number.isFinite(startOdometerCompare) && startOdometerCompare !== 0) {
+        return startOdometerCompare;
+      }
       const endCompare = String(a.endDate).localeCompare(String(b.endDate));
       if (endCompare !== 0) return endCompare;
+      const endOdometerCompare = Number(a.odoEnd) - Number(b.odoEnd);
+      if (Number.isFinite(endOdometerCompare) && endOdometerCompare !== 0) {
+        return endOdometerCompare;
+      }
       return Number(a.rowNumber || 0) - Number(b.rowNumber || 0);
     });
   }
 
   function getBoundaryTrips(trips) {
-    const first = trips.slice().sort((a, b) => {
-      const compare = String(a.startDate).localeCompare(String(b.startDate));
-      return compare || Number(a.rowNumber || 0) - Number(b.rowNumber || 0);
-    })[0];
+    const sorted = sortTrips(trips);
     const last = trips.slice().sort((a, b) => {
-      const compare = String(b.endDate).localeCompare(String(a.endDate));
-      return compare || Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
+      const endCompare = String(b.endDate).localeCompare(String(a.endDate));
+      if (endCompare !== 0) return endCompare;
+      const endOdometerCompare = Number(b.odoEnd) - Number(a.odoEnd);
+      if (Number.isFinite(endOdometerCompare) && endOdometerCompare !== 0) {
+        return endOdometerCompare;
+      }
+      return Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
     })[0];
-    return { first, last };
+    return { first: sorted[0], last };
   }
 
   function engineDescription(details) {
