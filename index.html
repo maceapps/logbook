@@ -2,6 +2,10 @@
 <html lang="en-AU">
   <head>
     <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; connect-src 'self' https://accounts.google.com/gsi/ https://oauth2.googleapis.com https://www.googleapis.com https://sheets.googleapis.com; frame-src https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>LogBook</title>
     <meta
@@ -343,20 +347,8 @@
 
     <script src="config.js"></script>
     <script src="google.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="vendor/exceljs-4.4.0.min.js"></script>
     <script src="download.js"></script>
     <script src="app.js"></script>
-    <script>
-      // GIS may load before or after app.js
-      (function waitForGis() {
-        if (window.google && google.accounts && google.accounts.oauth2) {
-          if (typeof window.__logbookOnGisLoad === "function") {
-            window.__logbookOnGisLoad();
-          }
-          return;
-        }
-        setTimeout(waitForGis, 50);
-      })();
-    </script>
   </body>
 </html>

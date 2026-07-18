@@ -1014,7 +1014,11 @@
   });
 
   window.__logbookOnGisLoad = onGisReady;
-  if (window.google && google.accounts && google.accounts.oauth2) {
-    onGisReady();
-  }
+  (function waitForGis() {
+    if (window.google && google.accounts && google.accounts.oauth2) {
+      window.__logbookOnGisLoad();
+      return;
+    }
+    window.setTimeout(waitForGis, 50);
+  })();
 })();

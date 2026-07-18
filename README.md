@@ -13,7 +13,7 @@ recorded trips when creating an Excel download.
 - HTML, CSS, and vanilla JavaScript (no build step)
 - [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/overview) for sign-in
 - Google Drive API + Google Sheets API (browser-only; no backend)
-- ExcelJS for generating a standalone, formatted `.xlsx` logbook
+- Self-hosted ExcelJS 4.4.0 for generating a standalone, formatted `.xlsx` logbook
 - Hosted on GitHub Pages
 
 ## Setup: Google Cloud
@@ -89,6 +89,7 @@ Sheets created outside the app may not appear: the app uses the `drive.file` sco
 | `app.js` | UI wiring |
 | `google.js` | Auth + Drive/Sheets |
 | `download.js` | Builds and downloads the formatted Excel logbook |
+| `vendor/exceljs-4.4.0.min.js` | Pinned local ExcelJS browser build |
 | `config.js` | `GOOGLE_CLIENT_ID` |
 | `Etax-Car-Logbook-template.xlsx` | Original reference file; not required at runtime |
 
