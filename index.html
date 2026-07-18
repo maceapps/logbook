@@ -52,14 +52,26 @@
             <label for="fy-select">Financial year</label>
             <select id="fy-select"></select>
           </div>
-          <button id="add-trip-btn" class="btn" type="button">Add trip</button>
+          <div class="toolbar-actions">
+            <button id="vehicle-details-btn" class="btn btn-secondary" type="button">
+              Vehicle
+            </button>
+            <button id="add-trip-btn" class="btn" type="button">Add trip</button>
+          </div>
         </div>
 
         <div id="dashboard" class="dashboard hidden">
           <div id="period-progress" class="period-progress hidden" aria-live="polite">
             <div class="period-progress-header">
-              <span class="period-progress-title">12-week logbook period</span>
-              <span id="period-progress-label" class="period-progress-label"></span>
+              <div class="period-progress-copy">
+                <span class="period-progress-title">12 week period</span>
+                <span id="period-progress-label" class="period-progress-label"></span>
+              </div>
+              <div class="period-progress-actions">
+                <button id="download-btn" class="btn btn-small download-btn" type="button">
+                  Download
+                </button>
+              </div>
             </div>
             <div
               class="period-progress-track"
@@ -205,8 +217,82 @@
       </div>
     </div>
 
+    <div
+      id="vehicle-overlay"
+      class="overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="vehicle-form-title"
+    >
+      <div class="sheet">
+        <h2 id="vehicle-form-title">Vehicle details</h2>
+        <p class="form-intro">
+          These details are saved with the selected financial year and included
+          in your Excel download.
+        </p>
+        <p id="vehicle-form-error" class="status error hidden" role="alert"></p>
+        <form id="vehicle-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="vehicle-make">Make</label>
+              <input id="vehicle-make" type="text" autocomplete="organization-title" required />
+            </div>
+            <div class="field">
+              <label for="vehicle-model">Model</label>
+              <input id="vehicle-model" type="text" required />
+            </div>
+            <div class="field">
+              <label for="vehicle-year">Model year</label>
+              <input
+                id="vehicle-year"
+                type="number"
+                min="1900"
+                max="2100"
+                inputmode="numeric"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="vehicle-registration">Registration number</label>
+              <input id="vehicle-registration" type="text" autocomplete="off" required />
+            </div>
+            <div class="field">
+              <label for="engine-type">Engine type</label>
+              <select id="engine-type" required>
+                <option value="Standard">Standard</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="EV">EV</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="engine-cc">Engine size (cc)</label>
+              <input
+                id="engine-cc"
+                type="number"
+                min="1"
+                step="1"
+                inputmode="numeric"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-actions">
+            <span class="form-actions-spacer"></span>
+            <button id="vehicle-cancel-btn" class="btn btn-secondary" type="button">
+              Not now
+            </button>
+            <button id="vehicle-save-btn" class="btn" type="submit">
+              Save details
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="config.js"></script>
     <script src="google.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="download.js"></script>
     <script src="app.js"></script>
     <script>
       // GIS may load before or after app.js

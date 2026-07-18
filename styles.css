@@ -173,6 +173,12 @@ main {
   margin-bottom: 1rem;
 }
 
+.toolbar-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -235,14 +241,22 @@ main {
 .period-progress-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.75rem;
   margin-bottom: 0.55rem;
 }
 
 .period-progress-title {
+  display: block;
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+.period-progress-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .period-progress-label {
@@ -250,6 +264,26 @@ main {
   font-weight: 600;
   color: var(--accent);
   white-space: nowrap;
+}
+
+.period-progress-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.download-btn {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  padding: 0.3rem 0.7rem;
+  text-transform: lowercase;
+}
+
+.download-btn:hover {
+  background: var(--accent-hover);
 }
 
 .period-progress-track {
@@ -536,6 +570,18 @@ main {
   grid-column: 1 / -1;
 }
 
+.form-intro {
+  margin: -0.45rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.field input:disabled {
+  background: var(--bg-accent);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .signed-out-hint {
   text-align: center;
   padding: 2.5rem 1.25rem;
@@ -590,24 +636,61 @@ main {
   }
 
   .btn {
-    padding: 0.5rem 0.85rem;
-    font-size: 0.9rem;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.5rem;
+  }
+
+  .toolbar .field {
+    min-width: 0;
+  }
+
+  .toolbar .field select {
+    width: 100%;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+
+  .toolbar-actions .btn {
+    min-width: 4.6rem;
   }
 
   main {
     padding-top: 1rem;
   }
 
-  .period-progress-header,
   .usage-split-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem;
   }
 
-  .period-progress-label,
   .usage-split-total {
     white-space: normal;
+  }
+
+  .period-progress-header {
+    gap: 0.5rem;
+  }
+
+  .period-progress-actions {
+    align-items: flex-end;
+  }
+
+  .period-progress-label {
+    font-size: 0.78rem;
   }
 
   .usage-split-labels {

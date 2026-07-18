@@ -435,6 +435,79 @@
       .filter(Boolean);
   }
 
+  async function getVehicleDetails(spreadsheetId) {
+    await ensureFreshToken();
+    const ranges = [
+      "'Record Keeping'!E4:E8",
+      "'Record Keeping'!J4:J5",
+    ];
+    const query = ranges
+      .map((range) => "ranges=" + encodeURIComponent(range))
+      .join("&");
+    const data = await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        "/values:batchGet?" +
+        query
+    );
+    const valueRanges = data.valueRanges || [];
+    const vehicleValues = (valueRanges[0] && valueRanges[0].values) || [];
+    const metadataValues = (valueRanges[1] && valueRanges[1].values) || [];
+    const valueAt = (values, index) =>
+      values[index] && values[index][0] != null
+        ? String(values[index][0]).trim()
+        : "";
+
+    return {
+      make: valueAt(vehicleValues, 0),
+      model: valueAt(vehicleValues, 1),
+      modelYear: valueAt(vehicleValues, 2),
+      registration: valueAt(vehicleValues, 3),
+      engineCc: valueAt(metadataValues, 1),
+      engineType: valueAt(metadataValues, 0),
+    };
+  }
+
+  async function saveVehicleDetails(spreadsheetId, fyLabel, details) {
+    await ensureFreshToken();
+    const engineDisplay =
+      details.engineType === "EV"
+        ? "EV"
+        : details.engineCc + " cc (" + details.engineType + ")";
+
+    await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        "/values:batchUpdate",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          valueInputOption: "USER_ENTERED",
+          data: [
+            {
+              range: "'Record Keeping'!B6",
+              values: [[fyLabel]],
+            },
+            {
+              range: "'Record Keeping'!E4:E8",
+              values: [
+                [details.make],
+                [details.model],
+                [Number(details.modelYear)],
+                [details.registration],
+                [engineDisplay],
+              ],
+            },
+            {
+              range: "'Record Keeping'!J4:J5",
+              values: [[details.engineType], [details.engineCc || ""]],
+            },
+          ],
+        }),
+      }
+    );
+  }
+
   function tripToRowValues(trip) {
     const km = Number(trip.odoEnd) - Number(trip.odoStart);
     const workRelated = trip.workRelated === "Y" ? "Y" : "N";
@@ -550,6 +623,8 @@
     createFYSheet,
     ensureCurrentFYSheet,
     listTrips,
+    getVehicleDetails,
+    saveVehicleDetails,
     appendTrip,
     updateTrip,
     deleteTrip,

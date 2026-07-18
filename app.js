@@ -12,6 +12,7 @@
     periodProgressBar: document.getElementById("period-progress-bar"),
     periodProgressFill: document.getElementById("period-progress-fill"),
     periodProgressMeta: document.getElementById("period-progress-meta"),
+    downloadBtn: document.getElementById("download-btn"),
     usageSplit: document.getElementById("usage-split"),
     usageSplitTotal: document.getElementById("usage-split-total"),
     usageSplitTrack: document.getElementById("usage-split-track"),
@@ -21,6 +22,7 @@
     usagePersonalKm: document.getElementById("usage-personal-km"),
     fySelect: document.getElementById("fy-select"),
     addTripBtn: document.getElementById("add-trip-btn"),
+    vehicleDetailsBtn: document.getElementById("vehicle-details-btn"),
     tripList: document.getElementById("trip-list"),
     emptyTrips: document.getElementById("empty-trips"),
     overlay: document.getElementById("trip-overlay"),
@@ -29,6 +31,17 @@
     actionEditBtn: document.getElementById("trip-action-edit"),
     actionDeleteBtn: document.getElementById("trip-action-delete"),
     actionCancelBtn: document.getElementById("trip-action-cancel"),
+    vehicleOverlay: document.getElementById("vehicle-overlay"),
+    vehicleForm: document.getElementById("vehicle-form"),
+    vehicleFormError: document.getElementById("vehicle-form-error"),
+    vehicleMake: document.getElementById("vehicle-make"),
+    vehicleModel: document.getElementById("vehicle-model"),
+    vehicleYear: document.getElementById("vehicle-year"),
+    vehicleRegistration: document.getElementById("vehicle-registration"),
+    engineType: document.getElementById("engine-type"),
+    engineCc: document.getElementById("engine-cc"),
+    vehicleCancelBtn: document.getElementById("vehicle-cancel-btn"),
+    vehicleSaveBtn: document.getElementById("vehicle-save-btn"),
     form: document.getElementById("trip-form"),
     formTitle: document.getElementById("trip-form-title"),
     editRow: document.getElementById("edit-row"),
@@ -51,6 +64,8 @@
     trips: [],
     busy: false,
     selectedActionTrip: null,
+    vehicleDetails: null,
+    downloadAfterVehicleSave: false,
   };
 
   function todayISO() {
@@ -79,6 +94,9 @@
     els.fySelect.disabled = busy;
     els.saveBtn.disabled = busy;
     els.deleteBtn.disabled = busy;
+    els.downloadBtn.disabled = busy || !state.trips.length;
+    els.vehicleDetailsBtn.disabled = busy || !state.selectedSheetId;
+    els.vehicleSaveBtn.disabled = busy;
     if (els.actionEditBtn) els.actionEditBtn.disabled = busy;
     if (els.actionDeleteBtn) els.actionDeleteBtn.disabled = busy;
   }
@@ -103,6 +121,8 @@
     state.sheets = [];
     state.selectedSheetId = null;
     state.trips = [];
+    state.vehicleDetails = null;
+    state.downloadAfterVehicleSave = false;
     els.fySelect.innerHTML = "";
     if (els.dashboard) els.dashboard.classList.add("hidden");
     if (els.periodProgress) els.periodProgress.classList.add("hidden");
@@ -242,6 +262,165 @@
         " day" +
         (progress.daysRemaining === 1 ? "" : "s") +
         " remaining";
+    }
+  }
+
+  function getSelectedFYLabel() {
+    const selected = state.sheets.find(
+      (sheet) => sheet.id === state.selectedSheetId
+    );
+    return selected ? selected.fy : LogBookGoogle.getCurrentFYLabel();
+  }
+
+  function vehicleDetailsComplete(details) {
+    if (!details) return false;
+    const baseFieldsPresent =
+      details.make &&
+      details.model &&
+      details.modelYear &&
+      details.registration &&
+      ["EV", "Hybrid", "Standard"].includes(details.engineType);
+    if (!baseFieldsPresent) return false;
+    return details.engineType === "EV" || Boolean(details.engineCc);
+  }
+
+  function setEngineCcState() {
+    const isEv = els.engineType.value === "EV";
+    els.engineCc.disabled = isEv;
+    els.engineCc.required = !isEv;
+    if (isEv) els.engineCc.value = "";
+  }
+
+  function clearVehicleFormError() {
+    els.vehicleFormError.textContent = "";
+    els.vehicleFormError.classList.add("hidden");
+  }
+
+  function openVehicleForm(details) {
+    const values = details || {};
+    els.vehicleMake.value = values.make || "";
+    els.vehicleModel.value = values.model || "";
+    els.vehicleYear.value = values.modelYear || "";
+    els.vehicleRegistration.value = values.registration || "";
+    els.engineType.value = ["EV", "Hybrid", "Standard"].includes(
+      values.engineType
+    )
+      ? values.engineType
+      : "Standard";
+    els.engineCc.value = values.engineCc || "";
+    setEngineCcState();
+    clearVehicleFormError();
+    els.vehicleOverlay.classList.remove("hidden");
+    const sheet = els.vehicleOverlay.querySelector(".sheet");
+    if (sheet) sheet.scrollTop = 0;
+  }
+
+  function closeVehicleForm() {
+    els.vehicleOverlay.classList.add("hidden");
+    state.downloadAfterVehicleSave = false;
+  }
+
+  function vehicleFormPayload() {
+    return {
+      make: els.vehicleMake.value.trim(),
+      model: els.vehicleModel.value.trim(),
+      modelYear: els.vehicleYear.value,
+      registration: els.vehicleRegistration.value.trim().toUpperCase(),
+      engineType: els.engineType.value,
+      engineCc: els.engineType.value === "EV" ? "" : els.engineCc.value,
+    };
+  }
+
+  async function loadVehicleDetails(promptWhenMissing) {
+    if (!state.selectedSheetId) return;
+    try {
+      state.vehicleDetails = await LogBookGoogle.getVehicleDetails(
+        state.selectedSheetId
+      );
+      if (
+        promptWhenMissing &&
+        !vehicleDetailsComplete(state.vehicleDetails)
+      ) {
+        openVehicleForm(state.vehicleDetails);
+      }
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "Failed to load vehicle details.", true);
+    }
+  }
+
+  async function saveVehicleDetails(event) {
+    event.preventDefault();
+    const details = vehicleFormPayload();
+    if (!vehicleDetailsComplete(details)) {
+      els.vehicleFormError.textContent =
+        details.engineType !== "EV" && !details.engineCc
+          ? "Enter the engine size in cc, or select EV."
+          : "Complete all vehicle details.";
+      els.vehicleFormError.classList.remove("hidden");
+      return;
+    }
+
+    clearVehicleFormError();
+    setBusy(true);
+    const shouldDownload = state.downloadAfterVehicleSave;
+    try {
+      await LogBookGoogle.saveVehicleDetails(
+        state.selectedSheetId,
+        getSelectedFYLabel(),
+        details
+      );
+      state.vehicleDetails = details;
+      state.downloadAfterVehicleSave = false;
+      els.vehicleOverlay.classList.add("hidden");
+      if (shouldDownload) await downloadCurrentLogBook();
+    } catch (err) {
+      console.error(err);
+      els.vehicleFormError.textContent =
+        err.message || "Failed to save vehicle details.";
+      els.vehicleFormError.classList.remove("hidden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function restoreTripCountStatus() {
+    if (!state.trips.length) {
+      setStatus("");
+      return;
+    }
+    setStatus(
+      state.trips.length +
+        " trip" +
+        (state.trips.length === 1 ? "" : "s")
+    );
+  }
+
+  async function downloadCurrentLogBook() {
+    if (!state.trips.length) {
+      setStatus("Add at least one trip before downloading.", true);
+      return;
+    }
+    if (!vehicleDetailsComplete(state.vehicleDetails)) {
+      state.downloadAfterVehicleSave = true;
+      openVehicleForm(state.vehicleDetails);
+      return;
+    }
+
+    setBusy(true);
+    setStatus("Preparing Excel download…");
+    try {
+      await LogBookExport.downloadLogBook({
+        fyLabel: getSelectedFYLabel(),
+        trips: state.trips,
+        vehicleDetails: state.vehicleDetails,
+      });
+      restoreTripCountStatus();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "Failed to create Excel download.", true);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -451,7 +630,7 @@
       state.selectedSheetId = current.id;
       renderFYOptions();
       await loadTrips();
-      setStatus("");
+      await loadVehicleDetails(true);
     } catch (err) {
       console.error(err);
       setStatus(err.message || "Failed to set up Drive.", true);
@@ -467,12 +646,7 @@
     try {
       state.trips = await LogBookGoogle.listTrips(state.selectedSheetId);
       renderTrips();
-      setStatus(
-        state.trips.length
-          ? state.trips.length + " trip" + (state.trips.length === 1 ? "" : "s")
-          : ""
-      );
-      if (!state.trips.length) setStatus("");
+      restoreTripCountStatus();
     } catch (err) {
       console.error(err);
       setStatus(err.message || "Failed to load trips.", true);
@@ -691,7 +865,9 @@
 
   els.fySelect.addEventListener("change", async () => {
     state.selectedSheetId = els.fySelect.value;
+    state.vehicleDetails = null;
     await loadTrips();
+    await loadVehicleDetails(true);
   });
 
   els.startDate.addEventListener("change", () => {
@@ -701,6 +877,10 @@
   });
 
   els.addTripBtn.addEventListener("click", openAddForm);
+  els.downloadBtn.addEventListener("click", downloadCurrentLogBook);
+  els.vehicleDetailsBtn.addEventListener("click", () => {
+    openVehicleForm(state.vehicleDetails);
+  });
   els.cancelBtn.addEventListener("click", closeForm);
   els.deleteBtn.addEventListener("click", deleteFromForm);
   els.form.addEventListener("submit", saveTrip);
@@ -727,6 +907,13 @@
 
   els.actionsOverlay.addEventListener("click", (e) => {
     if (e.target === els.actionsOverlay) closeTripActions();
+  });
+
+  els.engineType.addEventListener("change", setEngineCcState);
+  els.vehicleForm.addEventListener("submit", saveVehicleDetails);
+  els.vehicleCancelBtn.addEventListener("click", closeVehicleForm);
+  els.vehicleOverlay.addEventListener("click", (e) => {
+    if (e.target === els.vehicleOverlay) closeVehicleForm();
   });
 
   window.__logbookOnGisLoad = onGisReady;
