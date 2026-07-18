@@ -419,10 +419,20 @@
     };
   }
 
-  function savedOdometerOrDefault(value, fallback) {
-    if (value === "" || value == null) return fallback;
+  function parsedSavedOdometer(value) {
+    if (value === "" || value == null) return null;
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function openingOdometerForDownload(value, fallback) {
+    const saved = parsedSavedOdometer(value);
+    return saved == null ? fallback : Math.min(saved, fallback);
+  }
+
+  function closingOdometerForDownload(value, fallback) {
+    const saved = parsedSavedOdometer(value);
+    return saved == null ? fallback : Math.max(saved, fallback);
   }
 
   function clearDownloadFormError() {
@@ -432,11 +442,11 @@
 
   function openDownloadReview() {
     const defaults = getTripOdometerDefaults();
-    els.downloadOpeningOdo.value = savedOdometerOrDefault(
+    els.downloadOpeningOdo.value = openingOdometerForDownload(
       state.vehicleDetails.openingOdometer,
       defaults.opening
     );
-    els.downloadClosingOdo.value = savedOdometerOrDefault(
+    els.downloadClosingOdo.value = closingOdometerForDownload(
       state.vehicleDetails.closingOdometer,
       defaults.closing
     );
@@ -450,17 +460,34 @@
     els.downloadOverlay.classList.add("hidden");
   }
 
-  function downloadCurrentLogBook() {
-    if (!state.trips.length) {
-      setStatus("Add at least one trip before downloading.", true);
-      return;
+  async function downloadCurrentLogBook() {
+    if (!state.selectedSheetId) return;
+    setBusy(true);
+    setStatus("Refreshing trips before download…");
+    try {
+      state.trips = await LogBookGoogle.listTrips(state.selectedSheetId);
+      state.vehicleDetails = await LogBookGoogle.getVehicleDetails(
+        state.selectedSheetId
+      );
+      renderTrips();
+
+      if (!state.trips.length) {
+        setStatus("Add at least one trip before downloading.", true);
+        return;
+      }
+      restoreTripCountStatus();
+      if (!vehicleDetailsComplete(state.vehicleDetails)) {
+        state.downloadAfterVehicleSave = true;
+        openVehicleForm(state.vehicleDetails);
+        return;
+      }
+      openDownloadReview();
+    } catch (err) {
+      console.error(err);
+      setStatus(err.message || "Failed to refresh trips for download.", true);
+    } finally {
+      setBusy(false);
     }
-    if (!vehicleDetailsComplete(state.vehicleDetails)) {
-      state.downloadAfterVehicleSave = true;
-      openVehicleForm(state.vehicleDetails);
-      return;
-    }
-    openDownloadReview();
   }
 
   async function confirmDownload(event) {

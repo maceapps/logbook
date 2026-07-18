@@ -11,6 +11,14 @@
   const SHEET_TITLE_PREFIX = "LogBook ";
   const DATA_START_ROW = 12;
   const SHEET_TAB = "Record Keeping";
+  const APP_RESOURCE_KEY = "logbook_resource";
+  const APP_RESOURCE_FOLDER = "folder";
+  const APP_RESOURCE_FY_SHEET = "financial_year";
+  const APP_FINANCIAL_YEAR_KEY = "financial_year";
+  const APP_SCHEMA_KEY = "logbook_schema";
+  const APP_SCHEMA_VERSION = "1";
+  const APP_MIGRATION_KEY = "resource_migration";
+  const APP_MIGRATION_VERSION = "1";
 
   const HEADER_ROW_10 = [
     "Date of Trip",
@@ -247,7 +255,46 @@
     return str;
   }
 
-  async function findFolder() {
+  function folderAppProperties(migrationComplete) {
+    const properties = {
+      [APP_RESOURCE_KEY]: APP_RESOURCE_FOLDER,
+      [APP_SCHEMA_KEY]: APP_SCHEMA_VERSION,
+    };
+    if (migrationComplete) {
+      properties[APP_MIGRATION_KEY] = APP_MIGRATION_VERSION;
+    }
+    return properties;
+  }
+
+  function fySheetAppProperties(fyLabel) {
+    return {
+      [APP_RESOURCE_KEY]: APP_RESOURCE_FY_SHEET,
+      [APP_FINANCIAL_YEAR_KEY]: fyLabel,
+      [APP_SCHEMA_KEY]: APP_SCHEMA_VERSION,
+    };
+  }
+
+  function appPropertyQuery(key, value) {
+    return (
+      "appProperties has { key='" + key + "' and value='" + value + "' }"
+    );
+  }
+
+  async function findMarkedFolder() {
+    await ensureFreshToken();
+    const q = encodeURIComponent(
+      appPropertyQuery(APP_RESOURCE_KEY, APP_RESOURCE_FOLDER) +
+        " and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    );
+    const data = await apiFetch(
+      "https://www.googleapis.com/drive/v3/files?q=" +
+        q +
+        "&spaces=drive&fields=files(id,name,appProperties)&pageSize=10"
+    );
+    return (data.files && data.files[0]) || null;
+  }
+
+  async function findLegacyFolder() {
     await ensureFreshToken();
     const q = encodeURIComponent(
       "name='" +
@@ -257,26 +304,91 @@
     const data = await apiFetch(
       "https://www.googleapis.com/drive/v3/files?q=" +
         q +
-        "&spaces=drive&fields=files(id,name)&pageSize=10"
+        "&spaces=drive&fields=files(id,name,appProperties)&pageSize=10"
     );
     return (data.files && data.files[0]) || null;
   }
 
+  async function updateDriveAppProperties(fileId, appProperties) {
+    await ensureFreshToken();
+    return apiFetch(
+      "https://www.googleapis.com/drive/v3/files/" +
+        encodeURIComponent(fileId) +
+        "?fields=id,name,appProperties",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ appProperties }),
+      }
+    );
+  }
+
   async function createFolder() {
     await ensureFreshToken();
-    return apiFetch("https://www.googleapis.com/drive/v3/files", {
-      method: "POST",
-      body: JSON.stringify({
-        name: FOLDER_NAME,
-        mimeType: "application/vnd.google-apps.folder",
-      }),
-    });
+    return apiFetch(
+      "https://www.googleapis.com/drive/v3/files?fields=id,name,appProperties",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: FOLDER_NAME,
+          mimeType: "application/vnd.google-apps.folder",
+          appProperties: folderAppProperties(true),
+        }),
+      }
+    );
+  }
+
+  async function migrateLegacyFYSheets(folderId) {
+    await ensureFreshToken();
+    const q = encodeURIComponent(
+      "'" +
+        folderId +
+        "' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+    );
+    const data = await apiFetch(
+      "https://www.googleapis.com/drive/v3/files?q=" +
+        q +
+        "&spaces=drive&fields=files(id,name,appProperties)&pageSize=100"
+    );
+    const files = data.files || [];
+
+    for (const file of files) {
+      const fy = parseFYFromName(file.name);
+      if (!fy) continue;
+      const properties = file.appProperties || {};
+      if (
+        properties[APP_RESOURCE_KEY] === APP_RESOURCE_FY_SHEET &&
+        properties[APP_FINANCIAL_YEAR_KEY] === fy &&
+        properties[APP_SCHEMA_KEY] === APP_SCHEMA_VERSION
+      ) {
+        continue;
+      }
+      await updateDriveAppProperties(file.id, fySheetAppProperties(fy));
+    }
+  }
+
+  async function completeFolderMigration(folder) {
+    const properties = folder.appProperties || {};
+    if (properties[APP_MIGRATION_KEY] === APP_MIGRATION_VERSION) {
+      return folder;
+    }
+    await migrateLegacyFYSheets(folder.id);
+    return updateDriveAppProperties(folder.id, folderAppProperties(true));
   }
 
   async function ensureFolder() {
-    let folder = await findFolder();
-    if (!folder) folder = await createFolder();
-    return folder;
+    let folder = await findMarkedFolder();
+    if (!folder) {
+      folder = await findLegacyFolder();
+      if (!folder) return createFolder();
+
+      // Mark the folder first. If sheet migration is interrupted, the missing
+      // migration marker causes the process to resume safely next time.
+      folder = await updateDriveAppProperties(
+        folder.id,
+        folderAppProperties(false)
+      );
+    }
+    return completeFolderMigration(folder);
   }
 
   async function listFYSheets(folderId) {
@@ -289,12 +401,21 @@
     const data = await apiFetch(
       "https://www.googleapis.com/drive/v3/files?q=" +
         q +
-        "&spaces=drive&fields=files(id,name,createdTime)&orderBy=name desc&pageSize=100"
+        "&spaces=drive&fields=files(id,name,createdTime,appProperties)&orderBy=name desc&pageSize=100"
     );
     const files = data.files || [];
     return files
+      .filter(
+        (f) =>
+          f.appProperties &&
+          f.appProperties[APP_RESOURCE_KEY] === APP_RESOURCE_FY_SHEET
+      )
       .map((f) => {
-        const fy = parseFYFromName(f.name);
+        const markedFY =
+          f.appProperties && f.appProperties[APP_FINANCIAL_YEAR_KEY];
+        const fy = /^\d{4}-\d{2}$/.test(markedFY || "")
+          ? markedFY
+          : parseFYFromName(f.name);
         return fy ? { id: f.id, name: f.name, fy } : null;
       })
       .filter(Boolean);
@@ -309,6 +430,7 @@
         name,
         mimeType: "application/vnd.google-apps.spreadsheet",
         parents: [folderId],
+        appProperties: fySheetAppProperties(fyLabel),
       }),
     });
 

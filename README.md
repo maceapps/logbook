@@ -79,6 +79,10 @@ Open `http://localhost:5500` and ensure that origin is listed in the OAuth clien
 8. Switch years with the financial year selector. New years are created automatically when you first open the app during that FY.
 
 Sheets created outside the app may not appear: the app uses the `drive.file` scope and only sees files it created.
+The app also marks its Drive folder and financial-year spreadsheets with private
+`appProperties` metadata so similarly named files are not selected accidentally.
+Existing LogBook resources are marked automatically on the first load after
+upgrading; an interrupted migration resumes on the next load.
 
 ## Project files
 
