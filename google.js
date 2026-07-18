@@ -440,6 +440,7 @@
     const ranges = [
       "'Record Keeping'!E4:E8",
       "'Record Keeping'!J4:J5",
+      "'Record Keeping'!B7:B8",
     ];
     const query = ranges
       .map((range) => "ranges=" + encodeURIComponent(range))
@@ -453,6 +454,7 @@
     const valueRanges = data.valueRanges || [];
     const vehicleValues = (valueRanges[0] && valueRanges[0].values) || [];
     const metadataValues = (valueRanges[1] && valueRanges[1].values) || [];
+    const odometerValues = (valueRanges[2] && valueRanges[2].values) || [];
     const valueAt = (values, index) =>
       values[index] && values[index][0] != null
         ? String(values[index][0]).trim()
@@ -465,6 +467,8 @@
       registration: valueAt(vehicleValues, 3),
       engineCc: valueAt(metadataValues, 1),
       engineType: valueAt(metadataValues, 0),
+      openingOdometer: valueAt(odometerValues, 0),
+      closingOdometer: valueAt(odometerValues, 1),
     };
   }
 
@@ -503,6 +507,29 @@
               values: [[details.engineType], [details.engineCc || ""]],
             },
           ],
+        }),
+      }
+    );
+  }
+
+  async function saveOdometerReadings(
+    spreadsheetId,
+    openingOdometer,
+    closingOdometer
+  ) {
+    await ensureFreshToken();
+    await apiFetch(
+      "https://sheets.googleapis.com/v4/spreadsheets/" +
+        spreadsheetId +
+        "/values/" +
+        encodeURIComponent("'Record Keeping'!B7:B8") +
+        "?valueInputOption=USER_ENTERED",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          range: "'Record Keeping'!B7:B8",
+          majorDimension: "ROWS",
+          values: [[Number(openingOdometer)], [Number(closingOdometer)]],
         }),
       }
     );
@@ -625,6 +652,7 @@
     listTrips,
     getVehicleDetails,
     saveVehicleDetails,
+    saveOdometerReadings,
     appendTrip,
     updateTrip,
     deleteTrip,

@@ -289,6 +289,58 @@
       </div>
     </div>
 
+    <div
+      id="download-overlay"
+      class="overlay hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="download-form-title"
+    >
+      <div class="sheet">
+        <h2 id="download-form-title">Review odometer readings</h2>
+        <p class="form-intro">
+          These values are prefilled from your first and last trips. Update them
+          to the actual financial-year readings before downloading.
+        </p>
+        <p id="download-form-error" class="status error hidden" role="alert"></p>
+        <form id="download-form">
+          <div class="form-grid">
+            <div class="field">
+              <label for="download-opening-odo">As at 1st of July</label>
+              <input
+                id="download-opening-odo"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                required
+              />
+            </div>
+            <div class="field">
+              <label for="download-closing-odo">As at 30th of June</label>
+              <input
+                id="download-closing-odo"
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                required
+              />
+            </div>
+          </div>
+          <div class="form-actions">
+            <span class="form-actions-spacer"></span>
+            <button id="download-cancel-btn" class="btn btn-secondary" type="button">
+              Cancel
+            </button>
+            <button id="download-confirm-btn" class="btn" type="submit">
+              Download Excel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script src="config.js"></script>
     <script src="google.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>

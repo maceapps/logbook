@@ -42,6 +42,13 @@
     engineCc: document.getElementById("engine-cc"),
     vehicleCancelBtn: document.getElementById("vehicle-cancel-btn"),
     vehicleSaveBtn: document.getElementById("vehicle-save-btn"),
+    downloadOverlay: document.getElementById("download-overlay"),
+    downloadForm: document.getElementById("download-form"),
+    downloadFormError: document.getElementById("download-form-error"),
+    downloadOpeningOdo: document.getElementById("download-opening-odo"),
+    downloadClosingOdo: document.getElementById("download-closing-odo"),
+    downloadCancelBtn: document.getElementById("download-cancel-btn"),
+    downloadConfirmBtn: document.getElementById("download-confirm-btn"),
     form: document.getElementById("trip-form"),
     formTitle: document.getElementById("trip-form-title"),
     editRow: document.getElementById("edit-row"),
@@ -97,6 +104,7 @@
     els.downloadBtn.disabled = busy || !state.trips.length;
     els.vehicleDetailsBtn.disabled = busy || !state.selectedSheetId;
     els.vehicleSaveBtn.disabled = busy;
+    els.downloadConfirmBtn.disabled = busy;
     if (els.actionEditBtn) els.actionEditBtn.disabled = busy;
     if (els.actionDeleteBtn) els.actionDeleteBtn.disabled = busy;
   }
@@ -373,7 +381,7 @@
       state.vehicleDetails = details;
       state.downloadAfterVehicleSave = false;
       els.vehicleOverlay.classList.add("hidden");
-      if (shouldDownload) await downloadCurrentLogBook();
+      if (shouldDownload) openDownloadReview();
     } catch (err) {
       console.error(err);
       els.vehicleFormError.textContent =
@@ -396,7 +404,53 @@
     );
   }
 
-  async function downloadCurrentLogBook() {
+  function getTripOdometerDefaults() {
+    const first = state.trips.slice().sort((a, b) => {
+      const compare = String(a.startDate).localeCompare(String(b.startDate));
+      return compare || Number(a.rowNumber || 0) - Number(b.rowNumber || 0);
+    })[0];
+    const last = state.trips.slice().sort((a, b) => {
+      const compare = String(b.endDate).localeCompare(String(a.endDate));
+      return compare || Number(b.rowNumber || 0) - Number(a.rowNumber || 0);
+    })[0];
+    return {
+      opening: Number(first.odoStart),
+      closing: Number(last.odoEnd),
+    };
+  }
+
+  function savedOdometerOrDefault(value, fallback) {
+    if (value === "" || value == null) return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function clearDownloadFormError() {
+    els.downloadFormError.textContent = "";
+    els.downloadFormError.classList.add("hidden");
+  }
+
+  function openDownloadReview() {
+    const defaults = getTripOdometerDefaults();
+    els.downloadOpeningOdo.value = savedOdometerOrDefault(
+      state.vehicleDetails.openingOdometer,
+      defaults.opening
+    );
+    els.downloadClosingOdo.value = savedOdometerOrDefault(
+      state.vehicleDetails.closingOdometer,
+      defaults.closing
+    );
+    clearDownloadFormError();
+    els.downloadOverlay.classList.remove("hidden");
+    const sheet = els.downloadOverlay.querySelector(".sheet");
+    if (sheet) sheet.scrollTop = 0;
+  }
+
+  function closeDownloadReview() {
+    els.downloadOverlay.classList.add("hidden");
+  }
+
+  function downloadCurrentLogBook() {
     if (!state.trips.length) {
       setStatus("Add at least one trip before downloading.", true);
       return;
@@ -406,19 +460,57 @@
       openVehicleForm(state.vehicleDetails);
       return;
     }
+    openDownloadReview();
+  }
 
+  async function confirmDownload(event) {
+    event.preventDefault();
+    const openingOdometer = Number(els.downloadOpeningOdo.value);
+    const closingOdometer = Number(els.downloadClosingOdo.value);
+    if (
+      !Number.isFinite(openingOdometer) ||
+      !Number.isFinite(closingOdometer) ||
+      openingOdometer < 0 ||
+      closingOdometer < 0
+    ) {
+      els.downloadFormError.textContent =
+        "Enter valid odometer readings for both dates.";
+      els.downloadFormError.classList.remove("hidden");
+      return;
+    }
+    if (closingOdometer < openingOdometer) {
+      els.downloadFormError.textContent =
+        "The 30 June reading cannot be less than the 1 July reading.";
+      els.downloadFormError.classList.remove("hidden");
+      return;
+    }
+
+    clearDownloadFormError();
     setBusy(true);
     setStatus("Preparing Excel download…");
     try {
+      await LogBookGoogle.saveOdometerReadings(
+        state.selectedSheetId,
+        openingOdometer,
+        closingOdometer
+      );
+      state.vehicleDetails.openingOdometer = String(openingOdometer);
+      state.vehicleDetails.closingOdometer = String(closingOdometer);
       await LogBookExport.downloadLogBook({
         fyLabel: getSelectedFYLabel(),
         trips: state.trips,
         vehicleDetails: state.vehicleDetails,
+        openingOdometer,
+        closingOdometer,
       });
+      closeDownloadReview();
       restoreTripCountStatus();
     } catch (err) {
       console.error(err);
-      setStatus(err.message || "Failed to create Excel download.", true);
+      els.downloadFormError.textContent =
+        err.message || "Failed to create Excel download.";
+      els.downloadFormError.classList.remove("hidden");
+      setStatus("", false);
     } finally {
       setBusy(false);
     }
@@ -914,6 +1006,11 @@
   els.vehicleCancelBtn.addEventListener("click", closeVehicleForm);
   els.vehicleOverlay.addEventListener("click", (e) => {
     if (e.target === els.vehicleOverlay) closeVehicleForm();
+  });
+  els.downloadForm.addEventListener("submit", confirmDownload);
+  els.downloadCancelBtn.addEventListener("click", closeDownloadReview);
+  els.downloadOverlay.addEventListener("click", (e) => {
+    if (e.target === els.downloadOverlay) closeDownloadReview();
   });
 
   window.__logbookOnGisLoad = onGisReady;

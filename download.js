@@ -88,6 +88,12 @@
   function writeOverview(worksheet, options, trips) {
     const details = options.vehicleDetails;
     const boundaries = getBoundaryTrips(trips);
+    const openingOdometer = Number.isFinite(Number(options.openingOdometer))
+      ? Number(options.openingOdometer)
+      : Number(boundaries.first.odoStart);
+    const closingOdometer = Number.isFinite(Number(options.closingOdometer))
+      ? Number(options.closingOdometer)
+      : Number(boundaries.last.odoEnd);
     const totals = trips.reduce(
       (result, trip) => {
         const distance = tripDistance(trip);
@@ -150,8 +156,8 @@
 
     const values = {
       B6: options.fyLabel,
-      B7: Number(boundaries.first.odoStart),
-      B8: Number(boundaries.last.odoEnd),
+      B7: openingOdometer,
+      B8: closingOdometer,
       E4: details.make,
       E5: details.model,
       E6: Number(details.modelYear),
