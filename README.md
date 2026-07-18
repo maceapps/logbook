@@ -28,7 +28,6 @@ recorded trips when creating an Excel download.
    - Add your email as a developer contact
    - Scopes used by the app:
      - `https://www.googleapis.com/auth/drive.file`
-     - `https://www.googleapis.com/auth/spreadsheets`
      - `https://www.googleapis.com/auth/userinfo.email`
    - While the app is in **Testing**, add your Google account under **Test users**
 4. Go to **APIs & Services → Credentials → Create credentials → OAuth client ID**:
